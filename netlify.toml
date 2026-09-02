@@ -1,0 +1,3 @@
+[build]
+  base = "cofre-app"
+  command = "npm run build"
