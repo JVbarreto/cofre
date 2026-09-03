@@ -4,6 +4,14 @@ import { useRouter } from "next/navigation";
 import { createInvestment } from "@/lib/actions/investments";
 import Link from "next/link";
 
+const ASSET_TYPES = [
+  { value: "renda_fixa", label: "Renda Fixa" },
+  { value: "acoes", label: "Acoes" },
+  { value: "fundos", label: "Fundos" },
+  { value: "cripto", label: "Cripto" },
+  { value: "outros", label: "Outros" },
+];
+
 export default function NovoInvestimentoPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -11,23 +19,26 @@ export default function NovoInvestimentoPage() {
   const [globalError, setGlobalError] = useState("");
   const [form, setForm] = useState({
     name: "", asset_type: "renda_fixa", institution: "",
-    initial_value: "", current_value: "", purchase_date: new Date().toISOString().split("T")[0], maturity_date: "", notes: "",
+    initial_value: "", current_value: "",
+    purchase_date: new Date().toISOString().split("T")[0],
+    maturity_date: "", notes: "",
+  });
+
+  const currentDate = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long", day: "2-digit", month: "long", year: "numeric",
   });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFieldErrors({});
     setGlobalError("");
-
     startTransition(async () => {
       const result = await createInvestment(form);
-
       if (result.success) {
         router.push("/investimentos");
         router.refresh();
         return;
       }
-
       if (result.errors) {
         setFieldErrors(result.errors);
       } else {
@@ -36,81 +47,158 @@ export default function NovoInvestimentoPage() {
     });
   }
 
-  const loading = isPending;
-  const inputStyle = { width: "100%", background: "var(--color-surface-2)", border: "1px solid var(--color-border)", borderRadius: 6, padding: "10px 14px", fontSize: 14, color: "var(--color-text)", fontFamily: "inherit", outline: "none" };
-  const labelStyle = { display: "block", fontSize: 13, fontWeight: 500, color: "var(--color-text-2)", marginBottom: 8 } as React.CSSProperties;
-  const errorStyle = { fontSize: 12, color: "var(--color-danger)", marginTop: 4 };
+  const fieldStyle: React.CSSProperties = {
+    width: "100%", height: 48,
+    background: "var(--color-surface-2)",
+    border: "none", outline: "1px solid var(--color-border)", outlineOffset: "-0.5px",
+    borderRadius: 8, padding: "0 16px",
+    fontSize: 14, color: "var(--color-text)", fontFamily: "inherit",
+  };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 32, background: "var(--color-bg)" }}>
-      <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
-          <Link href="/investimentos" style={{ fontSize: 14, color: "var(--color-text-2)", textDecoration: "none" }}>← Voltar</Link>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>Novo Ativo</h1>
+    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "32px 32px", display: "flex", flexDirection: "column" }}>
+
+      {/* HEADER */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 14, color: "var(--color-text-2)", marginBottom: 4 }}>{currentDate}</div>
+        <h1 style={{ fontSize: 44, fontWeight: 600, color: "var(--color-text)", letterSpacing: "-0.5px", margin: "0 0 8px" }}>
+          Novo ativo
+        </h1>
+        <div style={{ fontSize: 14, color: "var(--color-text-2)" }}>
+          Cadastre um investimento e alimente o histórico da carteira.
         </div>
-        <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 18, padding: 32 }}>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>Nome do ativo</label>
-              <input style={inputStyle} type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Tesouro Selic 2027" required />
-              {fieldErrors.name && <p style={errorStyle}>{fieldErrors.name}</p>}
+      </div>
+
+      <div style={{ width: "100%", height: 1, background: "var(--color-border)", marginBottom: 32 }} />
+
+      {/* FORM CARD */}
+      <div style={{
+        width: 584,
+        background: "var(--color-surface-2)",
+        outline: "1px solid var(--color-border)", outlineOffset: "-0.5px",
+        borderRadius: 8, padding: 28,
+        display: "flex", flexDirection: "column", gap: 22,
+      }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-text)", letterSpacing: "-0.3px" }}>
+          Dados do investimento
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "contents" }}>
+
+          {/* Nome do ativo */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Nome do ativo*</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Tesouro Selic 2029"
+              required
+              style={fieldStyle}
+            />
+            {fieldErrors.name && <p style={{ fontSize: 12, color: "var(--color-danger)", margin: 0 }}>{fieldErrors.name}</p>}
+          </div>
+
+          {/* Instituicao */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Instituicao</label>
+            <input
+              type="text"
+              value={form.institution}
+              onChange={e => setForm(f => ({ ...f, institution: e.target.value }))}
+              placeholder="Ex: Nubank, XP, Rico..."
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Row: Valor + Tipo */}
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Valor*</label>
+              <input
+                type="text" inputMode="decimal"
+                value={form.initial_value}
+                onChange={e => setForm(f => ({ ...f, initial_value: e.target.value }))}
+                placeholder="R$ 0,00"
+                required
+                style={fieldStyle}
+              />
+              {fieldErrors.initial_value && <p style={{ fontSize: 12, color: "var(--color-danger)", margin: 0 }}>{fieldErrors.initial_value}</p>}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-              <div>
-                <label style={labelStyle}>Classe</label>
-                <select style={inputStyle} value={form.asset_type} onChange={e => setForm(f => ({ ...f, asset_type: e.target.value }))}>
-                  <option value="renda_fixa">Renda Fixa</option>
-                  <option value="acoes">Ações</option>
-                  <option value="fundos">Fundos</option>
-                  <option value="cripto">Cripto</option>
-                  <option value="outros">Outros</option>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Classe*</label>
+              <div style={{ position: "relative" }}>
+                <select
+                  value={form.asset_type}
+                  onChange={e => setForm(f => ({ ...f, asset_type: e.target.value }))}
+                  style={{ ...fieldStyle, appearance: "none", paddingRight: 40, cursor: "pointer" }}
+                >
+                  {ASSET_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
                 </select>
-                {fieldErrors.asset_type && <p style={errorStyle}>{fieldErrors.asset_type}</p>}
-              </div>
-              <div>
-                <label style={labelStyle}>Instituição</label>
-                <input style={inputStyle} type="text" value={form.institution} onChange={e => setForm(f => ({ ...f, institution: e.target.value }))} placeholder="Ex: Nubank, XP..." />
-                {fieldErrors.institution && <p style={errorStyle}>{fieldErrors.institution}</p>}
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-              <div>
-                <label style={labelStyle}>Valor investido (R$)</label>
-                <input style={inputStyle} type="text" inputMode="decimal" value={form.initial_value} onChange={e => setForm(f => ({ ...f, initial_value: e.target.value }))} placeholder="0,00" required />
-                {fieldErrors.initial_value && <p style={errorStyle}>{fieldErrors.initial_value}</p>}
-              </div>
-              <div>
-                <label style={labelStyle}>Valor atual (R$)</label>
-                <input style={inputStyle} type="text" inputMode="decimal" value={form.current_value} onChange={e => setForm(f => ({ ...f, current_value: e.target.value }))} placeholder="Deixe vazio se igual ao inicial" />
-                {fieldErrors.current_value && <p style={errorStyle}>{fieldErrors.current_value}</p>}
+                <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--color-text-2)" }}>
+                  <svg viewBox="0 0 14 14" width="14" height="14" fill="currentColor">
+                    <path d="M3.34619 4.68945q-0.25293 0.08545-0.37939 0.30762-0.04102 0.08545-0.04102 0.25293 0 0.16748 0.04785 0.25977 0.05127 0.08887 1.8628 1.9038 1.81494 1.81152 1.9038 1.8628 0.09229 0.04785 0.25977 0.04785 0.16748 0 0.25635-0.04785 0.09229-0.05127 1.90381-1.8628 1.81494-1.81494 1.86279-1.9038 0.05127-0.09229 0.05127-0.25977 0-0.16748-0.04102-0.25293-0.09912-0.16748-0.28027-0.2666-0.05811-0.02734-0.09912-0.04102-0.04102-0.01367-0.15381-0.01367-0.11279 0-0.15381 0.01367-0.04101 0.01367-0.11279 0.04102-0.09912 0.05811-1.66455 1.62695l-1.56885 1.56543-2.82666-2.81299q-0.31104-0.29395-0.42041-0.37939-0.08545-0.05469-0.19824-0.05469l-0.02735 0q-0.14014 0-0.18115 0.01367z" />
+                  </svg>
+                </div>
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-              <div>
-                <label style={labelStyle}>Data de compra</label>
-                <input style={inputStyle} type="date" value={form.purchase_date} onChange={e => setForm(f => ({ ...f, purchase_date: e.target.value }))} required />
-                {fieldErrors.purchase_date && <p style={errorStyle}>{fieldErrors.purchase_date}</p>}
-              </div>
-              <div>
-                <label style={labelStyle}>Vencimento (opcional)</label>
-                <input style={inputStyle} type="date" value={form.maturity_date} onChange={e => setForm(f => ({ ...f, maturity_date: e.target.value }))} />
-                {fieldErrors.maturity_date && <p style={errorStyle}>{fieldErrors.maturity_date}</p>}
-              </div>
-            </div>
-            <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>Observações</label>
-              <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical" as const }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Taxa, rentabilidade, estratégia..." />
-              {fieldErrors.notes && <p style={errorStyle}>{fieldErrors.notes}</p>}
-            </div>
-            {globalError && <p style={{ fontSize: 13, color: "var(--color-danger)", marginBottom: 16, textAlign: "center" }}>{globalError}</p>}
-            <div style={{ display: "flex", gap: 12 }}>
-              <Link href="/investimentos" style={{ flex: 1, textAlign: "center", padding: "12px", borderRadius: 6, fontSize: 14, fontWeight: 600, border: "1px solid var(--color-border)", color: "var(--color-text-2)", textDecoration: "none" }}>Cancelar</Link>
-              <button type="submit" disabled={loading} style={{ flex: 2, background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: loading ? 0.7 : 1 }}>
-                {loading ? "Salvando..." : "Salvar ativo"}
-              </button>
-            </div>
-          </form>
-        </div>
+          </div>
+
+          {/* Data */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Data</label>
+            <input
+              type="date"
+              value={form.purchase_date}
+              onChange={e => setForm(f => ({ ...f, purchase_date: e.target.value }))}
+              required
+              style={fieldStyle}
+            />
+            {fieldErrors.purchase_date && <p style={{ fontSize: 12, color: "var(--color-danger)", margin: 0 }}>{fieldErrors.purchase_date}</p>}
+          </div>
+
+          {/* Divider */}
+          <div style={{ width: "100%", height: 1, background: "var(--color-border)" }} />
+
+          {/* Note */}
+          <div style={{ fontSize: 12, lineHeight: "17px", color: "var(--color-text-2)" }}>
+            Se o valor atual ficar vazio, o sistema assume o valor aplicado. Ao salvar, o ativo entra agrupado por classe e gera o primeiro snapshot da carteira.
+          </div>
+
+          {globalError && (
+            <p style={{ fontSize: 13, color: "var(--color-danger)", margin: 0, textAlign: "center" }}>{globalError}</p>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", alignItems: "center" }}>
+            <Link
+              href="/investimentos"
+              style={{
+                height: 48, padding: "0 24px", display: "flex", alignItems: "center",
+                outline: "1px solid var(--color-border)", outlineOffset: "-0.5px", borderRadius: 8,
+                fontSize: 14, fontWeight: 600, color: "var(--color-text-2)", textDecoration: "none",
+              }}
+            >
+              Cancelar
+            </Link>
+            <button
+              type="submit"
+              disabled={isPending}
+              style={{
+                height: 48, padding: "0 24px", display: "flex", alignItems: "center",
+                background: "var(--color-primary)", borderRadius: 8, border: "none",
+                fontSize: 14, fontWeight: 600, color: "#FAFAFA",
+                cursor: isPending ? "not-allowed" : "pointer",
+                fontFamily: "inherit", opacity: isPending ? 0.7 : 1,
+                boxShadow: "0px 4px 24px 0px rgba(110, 86, 232, 0.33)",
+              }}
+            >
+              {isPending ? "Salvando..." : "Salvar ativo"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
