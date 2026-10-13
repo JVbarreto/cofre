@@ -1,0 +1,21 @@
+# env files
+.env*
+!.env.example
+
+# dependencies
+node_modules/
+
+# netlify / vercel
+.netlify
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# logs
+*.log

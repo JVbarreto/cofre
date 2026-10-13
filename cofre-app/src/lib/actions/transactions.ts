@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { Database } from "@/types/database";
+import { TIPO_PARA_DB } from "@/lib/data/mappers";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -13,8 +14,6 @@ export type TransactionFormData = {
   category_id: string;
   date: string;
   is_recurring: boolean;
-  recurrence_rule: string;
-  recurrence_end: string;
 };
 
 export type ActionResult = {
@@ -65,21 +64,6 @@ function validateTransaction(data: TransactionFormData): Record<string, string> 
     }
   }
 
-  // Recorrência
-  if (data.is_recurring) {
-    if (!["monthly", "weekly"].includes(data.recurrence_rule)) {
-      errors.recurrence_rule = "Frequência inválida.";
-    }
-    if (data.recurrence_end) {
-      const endDate = new Date(data.recurrence_end);
-      if (isNaN(endDate.getTime())) {
-        errors.recurrence_end = "Data de encerramento inválida.";
-      } else if (data.date && endDate <= new Date(data.date)) {
-        errors.recurrence_end = "Data de encerramento deve ser posterior à data do lançamento.";
-      }
-    }
-  }
-
   return errors;
 }
 
@@ -105,24 +89,19 @@ export async function createTransaction(data: TransactionFormData): Promise<Acti
   const amount = parseFloat(data.amount.replace(",", "."));
 
   // 3. Inserção segura no banco com user_id do servidor
-  type TransactionInsert = Database["public"]["Tables"]["transactions"]["Insert"];
-  const payload: TransactionInsert = {
+  type TransacaoInsert = Database["public"]["Tables"]["transacoes"]["Insert"];
+  const payload: TransacaoInsert = {
     user_id: user.id,
-    description: data.description.trim(),
-    amount,
-    type: data.type as "income" | "expense",
-    category_id: data.category_id || null,
-    date: data.date,
-    is_recurring: data.is_recurring,
-    recurrence_rule: data.is_recurring
-      ? (data.recurrence_rule as "monthly" | "weekly")
-      : null,
-    recurrence_end:
-      data.is_recurring && data.recurrence_end ? data.recurrence_end : null,
+    descricao: data.description.trim(),
+    valor: amount,
+    tipo: TIPO_PARA_DB[data.type as "income" | "expense"],
+    categoria_id: data.category_id || null,
+    data: data.date,
+    recorrente: data.is_recurring,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: dbError } = await (supabase as any).from("transactions").insert(payload);
+  const { error: dbError } = await (supabase as any).from("transacoes").insert(payload);
 
   if (dbError) {
     // Não expõe detalhes do banco para o client

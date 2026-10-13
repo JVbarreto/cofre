@@ -1,4 +1,5 @@
-import type { Investment } from "@/types/database";
+import type { Investment, InvestimentoRow } from "@/types/database";
+import { mapInvestimento } from "@/lib/data/mappers";
 import { createClient } from "@/lib/supabase/server";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatBRL } from "@/lib/utils/currency";
@@ -6,23 +7,23 @@ import { formatDate } from "@/lib/utils/dates";
 import Link from "next/link";
 
 const ASSET_LABELS: Record<string, string> = {
-  renda_fixa: "Renda Fixa", acoes: "Ações", fundos: "Fundos", cripto: "Cripto", outros: "Outros",
+  renda_fixa: "Renda Fixa", renda_variavel: "Renda Variável", poupanca: "Poupança",
 };
 const ASSET_COLORS: Record<string, string> = {
-  renda_fixa: "var(--color-primary)", acoes: "var(--color-success)", fundos: "var(--color-warning)", cripto: "#f97316", outros: "var(--color-text-2)",
+  renda_fixa: "var(--color-primary)", renda_variavel: "var(--color-success)", poupanca: "var(--color-warning)",
 };
 
 export default async function InvestimentosPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  type InvestmentRow = Investment & { investment_snapshots: { value: number; recorded_at: string }[] };
-  const { data: investments } = await supabase
-    .from("investments")
-    .select("*, investment_snapshots(value, recorded_at)")
+  type InvestmentRow = Investment;
+  const { data: investimentosRaw } = await supabase
+    .from("investimentos")
+    .select("*")
     .eq("user_id", user!.id)
-    .eq("is_active", true)
-    .order("asset_type") as unknown as { data: InvestmentRow[] | null };
+    .order("tipo") as unknown as { data: InvestimentoRow[] | null };
+  const investments: InvestmentRow[] | null = investimentosRaw?.map(mapInvestimento) ?? null;
 
   const totalPatrimony = investments?.reduce((s, i) => s + (i.current_value ?? i.initial_value), 0) ?? 0;
   const totalInitial   = investments?.reduce((s, i) => s + i.initial_value, 0) ?? 0;

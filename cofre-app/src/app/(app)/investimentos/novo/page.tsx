@@ -6,10 +6,8 @@ import Link from "next/link";
 
 const ASSET_TYPES = [
   { value: "renda_fixa", label: "Renda Fixa" },
-  { value: "acoes", label: "Acoes" },
-  { value: "fundos", label: "Fundos" },
-  { value: "cripto", label: "Cripto" },
-  { value: "outros", label: "Outros" },
+  { value: "renda_variavel", label: "Renda Variável" },
+  { value: "poupanca", label: "Poupança" },
 ];
 
 export default function NovoInvestimentoPage() {
@@ -18,10 +16,9 @@ export default function NovoInvestimentoPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState("");
   const [form, setForm] = useState({
-    name: "", asset_type: "renda_fixa", institution: "",
+    name: "", asset_type: "renda_fixa",
     initial_value: "", current_value: "",
     purchase_date: new Date().toISOString().split("T")[0],
-    maturity_date: "", notes: "",
   });
 
   const currentDate = new Date().toLocaleDateString("pt-BR", {
@@ -99,18 +96,6 @@ export default function NovoInvestimentoPage() {
             {fieldErrors.name && <p style={{ fontSize: 12, color: "var(--color-danger)", margin: 0 }}>{fieldErrors.name}</p>}
           </div>
 
-          {/* Instituicao */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Instituicao</label>
-            <input
-              type="text"
-              value={form.institution}
-              onChange={e => setForm(f => ({ ...f, institution: e.target.value }))}
-              placeholder="Ex: Nubank, XP, Rico..."
-              style={fieldStyle}
-            />
-          </div>
-
           {/* Row: Valor + Tipo */}
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -164,7 +149,7 @@ export default function NovoInvestimentoPage() {
 
           {/* Note */}
           <div style={{ fontSize: 12, lineHeight: "17px", color: "var(--color-text-2)" }}>
-            Se o valor atual ficar vazio, o sistema assume o valor aplicado. Ao salvar, o ativo entra agrupado por classe e gera o primeiro snapshot da carteira.
+            Se o valor atual ficar vazio, o sistema assume o valor aplicado.
           </div>
 
           {globalError && (

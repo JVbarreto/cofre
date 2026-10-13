@@ -1,51 +1,81 @@
-﻿export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+
+// ─── Schema real do banco (Supabase) — nomes em português ─────────────────────
+
+export type TipoCategoriaDB = "entrada" | "saida" | "investimento";
+export type TipoTransacaoDB = "entrada" | "saida";
+export type TipoInvestimentoDB = "renda_fixa" | "renda_variavel" | "poupanca";
+
+export type CategoriaRow = {
+  id: string; user_id: string; nome: string; tipo: TipoCategoriaDB;
+  orcamento: number | null; created_at: string;
+};
+export type TransacaoRow = {
+  id: string; user_id: string; categoria_id: string | null; tipo: TipoTransacaoDB;
+  descricao: string; valor: number; data: string; recorrente: boolean; created_at: string;
+};
+export type InvestimentoRow = {
+  id: string; user_id: string; nome: string; tipo: TipoInvestimentoDB;
+  valor_aplicado: number; valor_atual: number; data_aporte: string; created_at: string;
+};
 
 export interface Database {
   public: {
     Tables: {
-      profiles: {
-        Row: { id: string; name: string | null; avatar_url: string | null; created_at: string; };
-        Insert: { id: string; name?: string | null; avatar_url?: string | null; created_at?: string; };
-        Update: { id?: string; name?: string | null; avatar_url?: string | null; created_at?: string; };
+      categorias: {
+        Row: CategoriaRow;
+        Insert: { id?: string; user_id: string; nome: string; tipo: TipoCategoriaDB; orcamento?: number | null; created_at?: string; };
+        Update: { id?: string; user_id?: string; nome?: string; tipo?: TipoCategoriaDB; orcamento?: number | null; created_at?: string; };
       };
-      categories: {
-        Row: { id: string; user_id: string; name: string; type: "income" | "expense" | "investment"; color: string | null; icon: string | null; budget: number | null; created_at: string; };
-        Insert: { id?: string; user_id: string; name: string; type: "income" | "expense" | "investment"; color?: string | null; icon?: string | null; budget?: number | null; created_at?: string; };
-        Update: { id?: string; user_id?: string; name?: string; type?: "income" | "expense" | "investment"; color?: string | null; icon?: string | null; budget?: number | null; created_at?: string; };
+      transacoes: {
+        Row: TransacaoRow;
+        Insert: { id?: string; user_id: string; categoria_id?: string | null; tipo: TipoTransacaoDB; descricao: string; valor: number; data?: string; recorrente?: boolean; created_at?: string; };
+        Update: { id?: string; user_id?: string; categoria_id?: string | null; tipo?: TipoTransacaoDB; descricao?: string; valor?: number; data?: string; recorrente?: boolean; created_at?: string; };
       };
-      transactions: {
-        Row: { id: string; user_id: string; category_id: string | null; amount: number; type: "income" | "expense"; date: string; description: string; is_recurring: boolean; recurrence_rule: "monthly" | "weekly" | null; recurrence_end: string | null; parent_id: string | null; created_at: string; };
-        Insert: { id?: string; user_id: string; category_id?: string | null; amount: number; type: "income" | "expense"; date: string; description: string; is_recurring?: boolean; recurrence_rule?: "monthly" | "weekly" | null; recurrence_end?: string | null; parent_id?: string | null; created_at?: string; };
-        Update: { id?: string; user_id?: string; category_id?: string | null; amount?: number; type?: "income" | "expense"; date?: string; description?: string; is_recurring?: boolean; recurrence_rule?: "monthly" | "weekly" | null; recurrence_end?: string | null; parent_id?: string | null; created_at?: string; };
-      };
-      investments: {
-        Row: { id: string; user_id: string; name: string; asset_type: "renda_fixa" | "acoes" | "fundos" | "cripto" | "outros"; institution: string | null; initial_value: number; current_value: number | null; purchase_date: string; maturity_date: string | null; notes: string | null; is_active: boolean; created_at: string; };
-        Insert: { id?: string; user_id: string; name: string; asset_type: "renda_fixa" | "acoes" | "fundos" | "cripto" | "outros"; institution?: string | null; initial_value: number; current_value?: number | null; purchase_date: string; maturity_date?: string | null; notes?: string | null; is_active?: boolean; created_at?: string; };
-        Update: { id?: string; user_id?: string; name?: string; asset_type?: "renda_fixa" | "acoes" | "fundos" | "cripto" | "outros"; institution?: string | null; initial_value?: number; current_value?: number | null; purchase_date?: string; maturity_date?: string | null; notes?: string | null; is_active?: boolean; created_at?: string; };
-      };
-      investment_snapshots: {
-        Row: { id: string; investment_id: string; user_id: string; value: number; recorded_at: string; created_at: string; };
-        Insert: { id?: string; investment_id: string; user_id: string; value: number; recorded_at: string; created_at?: string; };
-        Update: { id?: string; investment_id?: string; user_id?: string; value?: number; recorded_at?: string; created_at?: string; };
+      investimentos: {
+        Row: InvestimentoRow;
+        Insert: { id?: string; user_id: string; nome: string; tipo: TipoInvestimentoDB; valor_aplicado: number; valor_atual: number; data_aporte?: string; created_at?: string; };
+        Update: { id?: string; user_id?: string; nome?: string; tipo?: TipoInvestimentoDB; valor_aplicado?: number; valor_atual?: number; data_aporte?: string; created_at?: string; };
       };
     };
     Views: {
-      monthly_summary: { Row: { user_id: string | null; month: string | null; total_income: number | null; total_expense: number | null; net: number | null; }; };
-      category_monthly: { Row: { user_id: string | null; category_id: string | null; category_name: string | null; category_color: string | null; category_icon: string | null; category_budget: number | null; month: string | null; total: number | null; }; };
+      resumo_mensal: { Row: { user_id: string | null; mes: string | null; total_entradas: number | null; total_saidas: number | null; saldo: number | null; }; };
+      gastos_categoria_mensal: { Row: { user_id: string | null; categoria_id: string | null; categoria_nome: string | null; categoria_orcamento: number | null; mes: string | null; total: number | null; }; };
+      media_gastos_recorrentes: { Row: { user_id: string | null; categoria: string | null; media_mensal: number | null; }; };
     };
     Functions: {};
     Enums: {};
   };
 }
 
-// Helper types
-export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-export type Category = Database["public"]["Tables"]["categories"]["Row"];
-export type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
-export type Investment = Database["public"]["Tables"]["investments"]["Row"];
-export type InvestmentSnapshot = Database["public"]["Tables"]["investment_snapshots"]["Row"];
-export type MonthlySummary = Database["public"]["Views"]["monthly_summary"]["Row"];
-export type CategoryMonthly = Database["public"]["Views"]["category_monthly"]["Row"];
+// ─── Tipos usados pela interface (mapeados a partir do schema acima) ──────────
+// Veja src/lib/data/mappers.ts para a conversão.
+
+export type Category = {
+  id: string; user_id: string; name: string; type: "income" | "expense" | "investment";
+  color: string | null; icon: string | null; budget: number | null; created_at: string;
+};
+
+export type Transaction = {
+  id: string; user_id: string; category_id: string | null; amount: number;
+  type: "income" | "expense"; date: string; description: string; is_recurring: boolean;
+  created_at: string;
+};
+
+export type Investment = {
+  id: string; user_id: string; name: string; asset_type: TipoInvestimentoDB;
+  initial_value: number; current_value: number | null; purchase_date: string; created_at: string;
+};
+
+export type MonthlySummary = {
+  user_id: string | null; month: string | null; total_income: number | null;
+  total_expense: number | null; net: number | null;
+};
+
+export type CategoryMonthly = {
+  user_id: string | null; category_id: string | null; category_name: string | null;
+  category_color: string | null; category_icon: string | null; category_budget: number | null;
+  month: string | null; total: number | null;
+};
 
 export type TransactionWithCategory = Transaction & { category: Category | null };
-export type InvestmentWithSnapshots = Investment & { investment_snapshots: InvestmentSnapshot[] };

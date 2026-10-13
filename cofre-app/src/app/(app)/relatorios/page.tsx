@@ -1,4 +1,5 @@
-import type { MonthlySummary, CategoryMonthly } from "@/types/database";
+import type { MonthlySummary, CategoryMonthly, Database } from "@/types/database";
+import { mapResumoMensal, mapGastoCategoria } from "@/lib/data/mappers";
 import { createClient } from "@/lib/supabase/server";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatBRL } from "@/lib/utils/currency";
@@ -10,20 +11,22 @@ export default async function RelatoriosPage() {
 
   const { start, end } = getLastNMonthsRange(6);
 
-  const { data: monthlySummary } = await supabase
-    .from("monthly_summary")
+  const { data: resumoRaw } = await supabase
+    .from("resumo_mensal")
     .select("*")
     .eq("user_id", user!.id)
-    .gte("month", start)
-    .lte("month", end)
-    .order("month", { ascending: true }) as { data: MonthlySummary[] | null, error: unknown };
+    .gte("mes", start)
+    .lte("mes", end)
+    .order("mes", { ascending: true }) as unknown as { data: Database["public"]["Views"]["resumo_mensal"]["Row"][] | null };
+  const monthlySummary: MonthlySummary[] | null = resumoRaw?.map(mapResumoMensal) ?? null;
 
-  const { data: categoryMonthly } = await supabase
-    .from("category_monthly")
+  const { data: gastosRaw } = await supabase
+    .from("gastos_categoria_mensal")
     .select("*")
     .eq("user_id", user!.id)
-    .gte("month", start)
-    .lte("month", end) as { data: CategoryMonthly[] | null, error: unknown };
+    .gte("mes", start)
+    .lte("mes", end) as unknown as { data: Database["public"]["Views"]["gastos_categoria_mensal"]["Row"][] | null };
+  const categoryMonthly: CategoryMonthly[] | null = gastosRaw?.map(mapGastoCategoria) ?? null;
 
   // Agrupar gastos por categoria (soma dos 6 meses)
   const categoryTotals = (categoryMonthly ?? []).reduce((acc, c) => {
@@ -43,17 +46,18 @@ export default async function RelatoriosPage() {
 
   // Medias recorrentes (baseado em media simples das categorias)
   const { data: recurringTransactions } = await supabase
-    .from("transactions")
-    .select("amount, category:categories(name, icon)")
+    .from("transacoes")
+    .select("valor, category:categorias(nome)")
     .eq("user_id", user!.id)
-    .eq("is_recurring", true)
-    .gte("date", start)
-    .lte("date", end);
+    .eq("tipo", "saida")
+    .eq("recorrente", true)
+    .gte("data", start)
+    .lte("data", end);
 
   const recurringByCategory = (recurringTransactions ?? []).reduce((acc, t: any) => {
-    const key = t.category?.name ?? "Sem categoria";
-    if (!acc[key]) acc[key] = { icon: t.category?.icon ?? "📦", total: 0, count: 0 };
-    acc[key].total += t.amount;
+    const key = t.category?.nome ?? "Sem categoria";
+    if (!acc[key]) acc[key] = { icon: "📦", total: 0, count: 0 };
+    acc[key].total += Number(t.valor);
     acc[key].count += 1;
     return acc;
   }, {} as Record<string, { icon: string; total: number; count: number }>);

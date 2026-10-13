@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatBRL } from "@/lib/utils/currency";
 import { getCurrentMonthRange, formatMonth } from "@/lib/utils/dates";
-import type { TransactionWithCategory, Investment, CategoryMonthly } from "@/types/database";
+import type { TransactionWithCategory, Investment, CategoryMonthly, TransacaoRow, CategoriaRow, InvestimentoRow, Database } from "@/types/database";
+import { mapTransacaoComCategoria, mapInvestimento, mapGastoCategoria } from "@/lib/data/mappers";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -12,35 +13,30 @@ export default async function DashboardPage() {
   const { start, end } = getCurrentMonthRange();
 
   // Busca transacoes do mes
-  const { data: transactions } = await supabase
-    .from("transactions")
-    .select("*, category:categories(*)")
+  const { data: transacoesRaw } = await supabase
+    .from("transacoes")
+    .select("*, categoria:categorias(*)")
     .eq("user_id", user!.id)
-    .gte("date", start)
-    .lte("date", end)
-    .order("date", { ascending: false }) as unknown as { data: TransactionWithCategory[] | null };
+    .gte("data", start)
+    .lte("data", end)
+    .order("data", { ascending: false }) as unknown as { data: (TransacaoRow & { categoria: CategoriaRow | null })[] | null };
+  const transactions: TransactionWithCategory[] | null = transacoesRaw?.map(mapTransacaoComCategoria) ?? null;
 
   // Busca investimentos
-  const { data: investments } = await supabase
-    .from("investments")
+  const { data: investimentosRaw } = await supabase
+    .from("investimentos")
     .select("*")
-    .eq("user_id", user!.id)
-    .eq("is_active", true) as unknown as { data: Investment[] | null };
-
-  // Busca resumo dos ultimos 6 meses
-  const { data: monthlySummary } = await supabase
-    .from("monthly_summary")
-    .select("*")
-    .eq("user_id", user!.id)
-    .order("month", { ascending: true });
+    .eq("user_id", user!.id) as unknown as { data: InvestimentoRow[] | null };
+  const investments: Investment[] | null = investimentosRaw?.map(mapInvestimento) ?? null;
 
   // Busca metas por categoria no mes
-  const { data: categoryMonthly } = await supabase
-    .from("category_monthly")
+  const { data: gastosRaw } = await supabase
+    .from("gastos_categoria_mensal")
     .select("*")
     .eq("user_id", user!.id)
-    .gte("month", start)
-    .lte("month", end) as unknown as { data: CategoryMonthly[] | null };
+    .gte("mes", start)
+    .lte("mes", end) as unknown as { data: Database["public"]["Views"]["gastos_categoria_mensal"]["Row"][] | null };
+  const categoryMonthly: CategoryMonthly[] | null = gastosRaw?.map(mapGastoCategoria) ?? null;
 
   const totalIncome  = transactions?.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0) ?? 0;
   const totalExpense = transactions?.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0) ?? 0;

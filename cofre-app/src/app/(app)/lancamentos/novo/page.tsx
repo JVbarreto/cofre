@@ -3,7 +3,8 @@ import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createTransaction } from "@/lib/actions/transactions";
-import type { Category } from "@/types/database";
+import type { Category, CategoriaRow } from "@/types/database";
+import { mapCategoria } from "@/lib/data/mappers";
 import Link from "next/link";
 
 export default function NovoLancamentoPage() {
@@ -15,7 +16,7 @@ export default function NovoLancamentoPage() {
   const [form, setForm] = useState({
     description: "", amount: "", type: "income",
     category_id: "", date: new Date().toISOString().split("T")[0],
-    is_recurring: false, recurrence_rule: "monthly", recurrence_end: "",
+    is_recurring: false,
   });
 
   const currentDate = new Date().toLocaleDateString("pt-BR", {
@@ -27,9 +28,9 @@ export default function NovoLancamentoPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       const { data } = await supabase
-        .from("categories").select("*")
-        .eq("user_id", user!.id).neq("type", "investment").order("name");
-      setCategories(data ?? []);
+        .from("categorias").select("*")
+        .eq("user_id", user!.id).neq("tipo", "investimento").order("nome") as unknown as { data: CategoriaRow[] | null };
+      setCategories((data ?? []).map(mapCategoria));
     }
     load();
   }, []);
@@ -212,32 +213,6 @@ export default function NovoLancamentoPage() {
                 Lançamento recorrente
               </span>
             </div>
-
-            {form.is_recurring && (
-              <div style={{
-                display: "flex", gap: 4, padding: 3,
-                outline: "1px solid var(--color-border)", outlineOffset: "-0.5px", borderRadius: 8,
-              }}>
-                {[
-                  { value: "monthly", label: "Mensal" },
-                  { value: "weekly", label: "Semanal" },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, recurrence_rule: opt.value }))}
-                    style={{
-                      height: 30, padding: "0 12px", borderRadius: 6, border: "none", cursor: "pointer",
-                      fontSize: 12, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s",
-                      background: form.recurrence_rule === opt.value ? "#222229" : "transparent",
-                      color: form.recurrence_rule === opt.value ? "var(--color-text)" : "var(--color-text-2)",
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Note */}

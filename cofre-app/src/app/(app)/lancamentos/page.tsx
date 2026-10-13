@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import type { TransactionWithCategory } from "@/types/database";
+import type { TransactionWithCategory, TransacaoRow, CategoriaRow } from "@/types/database";
+import { mapTransacaoComCategoria } from "@/lib/data/mappers";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatBRL } from "@/lib/utils/currency";
 import { formatDate, formatMonth, getCurrentMonthRange } from "@/lib/utils/dates";
@@ -10,13 +11,14 @@ export default async function LancamentosPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { start, end } = getCurrentMonthRange();
 
-  const { data: transactions } = await supabase
-    .from("transactions")
-    .select("*, category:categories(*)")
+  const { data: transacoesRaw } = await supabase
+    .from("transacoes")
+    .select("*, categoria:categorias(*)")
     .eq("user_id", user!.id)
-    .gte("date", start)
-    .lte("date", end)
-    .order("date", { ascending: false }) as { data: TransactionWithCategory[] | null, error: unknown };
+    .gte("data", start)
+    .lte("data", end)
+    .order("data", { ascending: false }) as unknown as { data: (TransacaoRow & { categoria: CategoriaRow | null })[] | null };
+  const transactions: TransactionWithCategory[] | null = transacoesRaw?.map(mapTransacaoComCategoria) ?? null;
 
   const totalIncome  = (transactions as TransactionWithCategory[] ?? []).filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0) ?? 0;
   const totalExpense = (transactions as TransactionWithCategory[] ?? []).filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0) ?? 0;
