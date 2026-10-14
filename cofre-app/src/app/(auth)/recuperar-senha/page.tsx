@@ -22,55 +22,28 @@ export default function RecuperarSenhaPage() {
 
   return (
     <AuthCard
-      title="Recuperar Senha"
-      subtitle="Informe seu e-mail e enviaremos um link para redefinir sua senha."
-      footer={<>Lembrou da senha? <Link href="/login">Voltar para o login</Link></>}
+      title="Recuperar senha"
+      subtitle="Informe seu e-mail e enviaremos um link para criar uma nova senha."
+      footer={<>Lembrou da senha? <Link href="/login" className="link">Voltar para o login</Link></>}
     >
       {sent ? (
-        <div style={{ background: "rgba(34,197,94,.12)", border: "1px solid rgba(34,197,94,.3)", borderRadius: 8, padding: "16px", fontSize: 14, color: "#22c55e", textAlign: "center" }}>
-          ✅ Link de recuperação enviado! Verifique seu e-mail.
+        <div className="notice notice-success" role="status">
+          Se o e-mail estiver cadastrado, o link chega em instantes. Confira também o spam.
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>E-mail</label>
-            <input 
-              type="email" 
-              value={email} 
-              onChange={e => setEmail(e.target.value)} 
-              placeholder="voce@email.com" 
-              required 
-              style={{ 
-                width: "100%", height: 52, padding: "0 16px", borderRadius: 8, 
-                background: "var(--color-surface-2)", border: "1px solid var(--color-border)",
-                color: "var(--color-text)", fontSize: 14, outline: "none"
-              }}
-              onFocus={(e) => {
-                e.target.style.border = "1px solid var(--color-primary)";
-                e.target.style.boxShadow = "0px 0px 0px 3px rgba(110,86,232,0.2)";
-              }}
-              onBlur={(e) => {
-                e.target.style.border = "1px solid var(--color-border)";
-                e.target.style.boxShadow = "none";
-              }}
+        <form onSubmit={handleSubmit} className="form">
+          <div className="field">
+            <label className="label" htmlFor="email">E-mail</label>
+            <input
+              id="email" className="input" type="email" autoComplete="email"
+              value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="voce@email.com" required
             />
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ 
-              width: "100%", height: 52, background: "var(--color-primary)", 
-              color: "var(--color-text)", fontSize: 14, fontWeight: 600, 
-              borderRadius: 8, border: "none", cursor: loading ? "not-allowed" : "pointer",
-              boxShadow: "0px 4px 24px 0px rgba(110, 86, 232, 0.33)",
-              display: "flex", alignItems: "center", justifyContent: "center"
-            }}
-          >
-            {loading ? "Enviando..." : "Enviar link de recuperação"}
+          <button type="submit" disabled={loading} className="btn btn-primary btn-block">
+            {loading ? "Enviando..." : "Enviar link"}
           </button>
-          
         </form>
       )}
     </AuthCard>

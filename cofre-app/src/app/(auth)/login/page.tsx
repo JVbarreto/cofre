@@ -19,6 +19,7 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      console.error("signIn:", error.status, error.code, error.message);
       setError("E-mail ou senha incorretos.");
       setLoading(false);
     } else {
@@ -30,82 +31,36 @@ export default function LoginPage() {
   return (
     <AuthCard
       title="Entrar"
-      subtitle="Acesse seu livro-caixa pessoal."
-      footer={<>Não tem uma conta? <Link href="/cadastro">Criar uma conta</Link></>}
+      subtitle="Acesse seu livro-caixa."
+      footer={<>Ainda não tem conta? <Link href="/cadastro" className="link">Criar conta</Link></>}
       showDivider
     >
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>E-mail</label>
-          <input 
-            type="email" 
-            value={email} 
-            onChange={e => setEmail(e.target.value)} 
-            placeholder="vitor@exemplo.com" 
-            required 
-            style={{ 
-              width: "100%", height: 52, padding: "0 16px", borderRadius: 8, 
-              background: "var(--color-surface-2)", border: "1px solid var(--color-border)",
-              color: "var(--color-text)", fontSize: 14, outline: "none"
-            }}
-            onFocus={(e) => {
-              e.target.style.border = "1px solid var(--color-primary)";
-              e.target.style.boxShadow = "0px 0px 0px 3px rgba(110,86,232,0.2)";
-            }}
-            onBlur={(e) => {
-              e.target.style.border = "1px solid var(--color-border)";
-              e.target.style.boxShadow = "none";
-            }}
+      <form onSubmit={handleSubmit} className="form">
+        <div className="field">
+          <label className="label" htmlFor="email">E-mail</label>
+          <input
+            id="email" className="input" type="email" autoComplete="email"
+            value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="voce@email.com" required
           />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Senha</label>
-          <input 
-            type="password" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-            placeholder="••••••••" 
-            required 
-            style={{ 
-              width: "100%", height: 52, padding: "0 16px", borderRadius: 8, 
-              background: "var(--color-surface-2)", border: "1px solid var(--color-border)",
-              color: "var(--color-text)", fontSize: 14, outline: "none"
-            }}
-            onFocus={(e) => {
-              e.target.style.border = "1px solid var(--color-primary)";
-              e.target.style.boxShadow = "0px 0px 0px 3px rgba(110,86,232,0.2)";
-            }}
-            onBlur={(e) => {
-              e.target.style.border = "1px solid var(--color-border)";
-              e.target.style.boxShadow = "none";
-            }}
+        <div className="field">
+          <label className="label" htmlFor="password">Senha</label>
+          <input
+            id="password" className="input" type="password" autoComplete="current-password"
+            value={password} onChange={e => setPassword(e.target.value)} required
           />
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -8 }}>
-          <Link href="/recuperar-senha" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary)", textDecoration: "none" }}>
+          <Link href="/recuperar-senha" className="link" style={{ fontSize: "var(--text-sm)", alignSelf: "flex-end" }}>
             Esqueci minha senha
           </Link>
         </div>
 
-        {error && <p style={{ fontSize: 13, color: "var(--color-danger)", textAlign: "center" }}>{error}</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
 
-        <button 
-          type="submit" 
-          disabled={loading}
-          style={{ 
-            width: "100%", height: 52, background: "var(--color-primary)", 
-            color: "var(--color-text)", fontSize: 14, fontWeight: 600, 
-            borderRadius: 8, border: "none", cursor: loading ? "not-allowed" : "pointer",
-            boxShadow: "0px 4px 24px 0px rgba(110, 86, 232, 0.33)",
-            display: "flex", alignItems: "center", justifyContent: "center"
-          }}
-        >
+        <button type="submit" disabled={loading} className="btn btn-primary btn-block">
           {loading ? "Entrando..." : "Entrar"}
         </button>
-
       </form>
     </AuthCard>
   );

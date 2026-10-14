@@ -6,12 +6,12 @@ interface TopbarProps {
 
 export function Topbar({ title, subtitle, actions }: TopbarProps) {
   return (
-    <header className="topbar">
+    <header className="page-head">
       <div>
-        <div className="page-title">{title}</div>
-        {subtitle && <div style={{ fontSize: 13, color: "var(--color-text-2)", marginTop: 2 }}>{subtitle}</div>}
+        <h1 className="h1">{title}</h1>
+        {subtitle && <p className="muted" style={{ marginTop: "var(--sp-1)" }}>{subtitle}</p>}
       </div>
-      {actions && <div className="topbar-right">{actions}</div>}
+      {actions && <div>{actions}</div>}
     </header>
   );
 }

@@ -5,12 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { LayoutDashboard, ArrowLeftRight, Landmark, ChartColumn, LogOut } from "lucide-react";
+
+const ICON_PROPS = { size: 18, strokeWidth: 1.75, "aria-hidden": true } as const;
 
 const navItems = [
-  { href: "/dashboard",     icon: "🏠", label: "Dashboard" },
-  { href: "/lancamentos",   icon: "💸", label: "Lançamentos" },
-  { href: "/investimentos", icon: "📈", label: "Investimentos" },
-  { href: "/relatorios",    icon: "📊", label: "Relatórios" },
+  { href: "/dashboard",     icon: <LayoutDashboard {...ICON_PROPS} />, label: "Painel" },
+  { href: "/lancamentos",   icon: <ArrowLeftRight {...ICON_PROPS} />,  label: "Lançamentos" },
+  { href: "/investimentos", icon: <Landmark {...ICON_PROPS} />,        label: "Investimentos" },
+  { href: "/relatorios",    icon: <ChartColumn {...ICON_PROPS} />,     label: "Relatórios" },
 ];
 
 export function Sidebar() {
@@ -30,22 +33,24 @@ export function Sidebar() {
     router.refresh();
   }
 
+  const displayName =
+    (user?.user_metadata?.name as string | undefined) || user?.email?.split("@")[0] || "";
+
   return (
     <aside className="sidebar">
-      {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="logo-icon">🔐</div>
-        <span className="logo-name">Cofre</span>
-      </div>
+      <div className="brand">Cofre</div>
 
-      <span className="sidebar-section-label">Menu</span>
-
-      <nav className="sidebar-nav">
+      <nav className="nav" aria-label="Principal">
         {navItems.map(item => {
           const active = pathname.startsWith(item.href);
           return (
-            <Link key={item.href} href={item.href} className={`nav-item ${active ? "active" : ""}`}>
-              <span className="nav-icon">{item.icon}</span>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`nav-item ${active ? "active" : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              {item.icon}
               {item.label}
             </Link>
           );
@@ -53,15 +58,18 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="user-card" style={{ marginBottom: 12 }}>
-          <div className="user-avatar">{user?.email?.[0].toUpperCase() || "U"}</div>
-          <div className="user-info">
-            <div className="user-name">Usuário</div>
-            <div className="user-email">{user?.email || "Carregando..."}</div>
-          </div>
+        <div className="user">
+          {user ? (
+            <>
+              <div className="user-name">{displayName}</div>
+              <div className="user-email">{user.email}</div>
+            </>
+          ) : (
+            <div className="skeleton" style={{ height: 32 }} aria-hidden="true" />
+          )}
         </div>
-        <button onClick={handleLogout} className="nav-item" style={{ background: "transparent", border: "none", cursor: "pointer", width: "100%", padding: "10px 12px" }}>
-          <span className="nav-icon">🚪</span>
+        <button onClick={handleLogout} className="nav-item">
+          <LogOut {...ICON_PROPS} />
           Sair
         </button>
       </div>

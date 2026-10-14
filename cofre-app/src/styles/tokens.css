@@ -1,0 +1,79 @@
+/* ==========================================================
+   COFRE — Tokens de design
+   Única fonte de verdade para cor, tipografia, raio, espaço,
+   sombra e movimento. Os componentes só consomem estas variáveis.
+   Direção: livro-caixa. Neutros quentes, um único destaque âmbar.
+   ========================================================== */
+
+:root {
+  /* ---------- Cor: neutros (escuro quente) ---------- */
+  --color-bg:           #151310;  /* fundo da página */
+  --color-surface:      #1c1a16;  /* menu lateral, áreas elevadas */
+  --color-surface-2:    #23201b;  /* campos de formulário */
+  --color-border:       #34302a;  /* linhas finas */
+  --color-border-light: #443f37;  /* linhas em hover/foco secundário */
+  --color-text:         #ece6d9;  /* texto principal (off-white quente) */
+  --color-text-2:       #b0a898;  /* texto secundário */
+  --color-text-3:       #8f8777;  /* texto de apoio (>= 4.5:1 sobre surface) */
+
+  /* ---------- Cor: destaque único ---------- */
+  --color-primary:      #d4a13f;  /* âmbar */
+  --color-primary-dim:  #bb8c30;
+  --color-on-primary:   #1a1408;  /* texto sobre âmbar (contraste ~8:1) */
+
+  /* ---------- Cor: estado (só para valores e avisos) ---------- */
+  --color-success:      #8dbf93;
+  --color-danger:       #e08a7d;
+  --color-warning:      #d9b35c;
+  --color-success-bg:   color-mix(in srgb, var(--color-success) 14%, transparent);
+  --color-danger-bg:    color-mix(in srgb, var(--color-danger) 14%, transparent);
+  --color-warning-bg:   color-mix(in srgb, var(--color-warning) 14%, transparent);
+
+  /* ---------- Tipografia ---------- */
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-body:    var(--font-instrument), system-ui, sans-serif;
+
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   20px;
+  --text-xl:   28px;
+  --text-2xl:  44px;
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-strong:  600;
+
+  --tracking-tight: -0.02em;   /* títulos */
+  --tracking-label:  0.08em;   /* rótulos em caixa-alta */
+  --leading-body:    1.5;
+  --leading-title:   1.15;
+
+  /* ---------- Raio (dois valores) ---------- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* ---------- Espaçamento (base 4/8px) ---------- */
+  --sp-1:   4px;
+  --sp-2:   8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ---------- Sombra: o app não usa sombra de elevação ---------- */
+  --shadow-none: none;
+
+  /* ---------- Movimento ---------- */
+  --dur: 150ms;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+
+  /* ---------- Layout ---------- */
+  --sidebar-w: 232px;
+  --content-max: 1120px;
+}
