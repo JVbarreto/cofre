@@ -19,6 +19,27 @@ export type InvestimentoRow = {
   valor_aplicado: number; valor_atual: number; data_aporte: string; created_at: string;
 };
 
+export type ImportanciaConta = "baixa" | "media" | "alta" | "urgente";
+export type StatusConta = "pendente" | "pago";
+export type FormaPagamentoConta = "pix" | "boleto" | "cartao" | "debito_automatico" | "dinheiro" | "outro";
+
+export type ContaPagarRow = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  descricao: string | null;
+  valor: number;
+  prazo: string;
+  data_pagamento: string | null;
+  importancia: ImportanciaConta;
+  status: StatusConta;
+  categoria_id: string | null;
+  codigo_barras: string | null;
+  forma_pagamento: FormaPagamentoConta | null;
+  recorrente: boolean;
+  created_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -36,6 +57,41 @@ export interface Database {
         Row: InvestimentoRow;
         Insert: { id?: string; user_id: string; nome: string; tipo: TipoInvestimentoDB; valor_aplicado: number; valor_atual: number; data_aporte?: string; created_at?: string; };
         Update: { id?: string; user_id?: string; nome?: string; tipo?: TipoInvestimentoDB; valor_aplicado?: number; valor_atual?: number; data_aporte?: string; created_at?: string; };
+      };
+      contas_pagar: {
+        Row: ContaPagarRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          titulo: string;
+          descricao?: string | null;
+          valor?: number;
+          prazo: string;
+          data_pagamento?: string | null;
+          importancia?: ImportanciaConta;
+          status?: StatusConta;
+          categoria_id?: string | null;
+          codigo_barras?: string | null;
+          forma_pagamento?: FormaPagamentoConta | null;
+          recorrente?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          titulo?: string;
+          descricao?: string | null;
+          valor?: number;
+          prazo?: string;
+          data_pagamento?: string | null;
+          importancia?: ImportanciaConta;
+          status?: StatusConta;
+          categoria_id?: string | null;
+          codigo_barras?: string | null;
+          forma_pagamento?: FormaPagamentoConta | null;
+          recorrente?: boolean;
+          created_at?: string;
+        };
       };
     };
     Views: {
@@ -79,3 +135,7 @@ export type CategoryMonthly = {
 };
 
 export type TransactionWithCategory = Transaction & { category: Category | null };
+
+export type ContaPagar = ContaPagarRow & {
+  categoria?: Category | null;
+};

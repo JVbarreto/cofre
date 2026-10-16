@@ -5,15 +5,16 @@ import { createClient } from "@/lib/supabase/client";
 
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { LayoutDashboard, ArrowLeftRight, Landmark, ChartColumn, LogOut } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, Landmark, ChartColumn, CalendarClock, LogOut } from "lucide-react";
 
 const ICON_PROPS = { size: 18, strokeWidth: 1.75, "aria-hidden": true } as const;
 
 const navItems = [
-  { href: "/dashboard",     icon: <LayoutDashboard {...ICON_PROPS} />, label: "Painel" },
-  { href: "/lancamentos",   icon: <ArrowLeftRight {...ICON_PROPS} />,  label: "Lançamentos" },
-  { href: "/investimentos", icon: <Landmark {...ICON_PROPS} />,        label: "Investimentos" },
-  { href: "/relatorios",    icon: <ChartColumn {...ICON_PROPS} />,     label: "Relatórios" },
+  { href: "/dashboard",      icon: <LayoutDashboard {...ICON_PROPS} />, label: "Painel" },
+  { href: "/lancamentos",    icon: <ArrowLeftRight {...ICON_PROPS} />,  label: "Lançamentos" },
+  { href: "/contas-a-pagar", icon: <CalendarClock {...ICON_PROPS} />,   label: "Contas a Pagar" },
+  { href: "/investimentos",  icon: <Landmark {...ICON_PROPS} />,        label: "Investimentos" },
+  { href: "/relatorios",     icon: <ChartColumn {...ICON_PROPS} />,     label: "Relatórios" },
 ];
 
 export function Sidebar() {
