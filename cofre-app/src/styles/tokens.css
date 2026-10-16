@@ -2,29 +2,30 @@
    COFRE — Tokens de design
    Única fonte de verdade para cor, tipografia, raio, espaço,
    sombra e movimento. Os componentes só consomem estas variáveis.
-   Direção: livro-caixa. Neutros quentes, um único destaque âmbar.
+   Direção: livro-caixa moderno. Neutros em Dark Slate e destaque em azul safira.
    ========================================================== */
 
 :root {
-  /* ---------- Cor: neutros (escuro quente) ---------- */
-  --color-bg:           #151310;  /* fundo da página */
-  --color-surface:      #1c1a16;  /* menu lateral, áreas elevadas */
-  --color-surface-2:    #23201b;  /* campos de formulário */
-  --color-border:       #34302a;  /* linhas finas */
-  --color-border-light: #443f37;  /* linhas em hover/foco secundário */
-  --color-text:         #ece6d9;  /* texto principal (off-white quente) */
-  --color-text-2:       #b0a898;  /* texto secundário */
-  --color-text-3:       #8f8777;  /* texto de apoio (>= 4.5:1 sobre surface) */
+  /* ---------- Cor: neutros (Dark Slate / Azul Noturno) ---------- */
+  --color-bg:           #0a0e17;  /* fundo da página */
+  --color-surface:      #101726;  /* menu lateral, áreas elevadas */
+  --color-surface-2:    #172033;  /* campos de formulário, cards internos */
+  --color-border:       #1e2b45;  /* linhas finas e divisórias */
+  --color-border-light: #2e3f63;  /* linhas em hover/foco secundário */
+  --color-text:         #f1f5f9;  /* texto principal (off-white frio) */
+  --color-text-2:       #94a3b8;  /* texto secundário (slate) */
+  --color-text-3:       #64748b;  /* texto de apoio (>= 4.5:1 sobre surface) */
 
-  /* ---------- Cor: destaque único ---------- */
-  --color-primary:      #d4a13f;  /* âmbar */
-  --color-primary-dim:  #bb8c30;
-  --color-on-primary:   #1a1408;  /* texto sobre âmbar (contraste ~8:1) */
+  /* ---------- Cor: destaque único (Azul Safira / Cobalto) ---------- */
+  --color-primary:      #3b82f6;  /* azul vibrante */
+  --color-primary-dim:  #2563eb;  /* azul em hover */
+  --color-on-primary:   #ffffff;  /* texto sobre azul */
+  --color-primary-glow: rgba(59, 130, 246, 0.28);
 
-  /* ---------- Cor: estado (só para valores e avisos) ---------- */
-  --color-success:      #8dbf93;
-  --color-danger:       #e08a7d;
-  --color-warning:      #d9b35c;
+  /* ---------- Cor: estado (valores e avisos calibrados para o slate) ---------- */
+  --color-success:      #34d399;  /* verde esmeralda para entradas */
+  --color-danger:       #f87171;  /* vermelho coral para saídas */
+  --color-warning:      #fbbf24;  /* âmbar de aviso */
   --color-success-bg:   color-mix(in srgb, var(--color-success) 14%, transparent);
   --color-danger-bg:    color-mix(in srgb, var(--color-danger) 14%, transparent);
   --color-warning-bg:   color-mix(in srgb, var(--color-warning) 14%, transparent);

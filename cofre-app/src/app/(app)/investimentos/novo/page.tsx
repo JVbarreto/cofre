@@ -174,10 +174,10 @@ export default function NovoInvestimentoPage() {
               style={{
                 height: 48, padding: "0 24px", display: "flex", alignItems: "center",
                 background: "var(--color-primary)", borderRadius: 8, border: "none",
-                fontSize: 14, fontWeight: 600, color: "#FAFAFA",
+                fontSize: 14, fontWeight: 600, color: "var(--color-on-primary)",
                 cursor: isPending ? "not-allowed" : "pointer",
                 fontFamily: "inherit", opacity: isPending ? 0.7 : 1,
-                boxShadow: "0px 4px 24px 0px rgba(110, 86, 232, 0.33)",
+                boxShadow: "0px 4px 20px 0px var(--color-primary-glow)",
               }}
             >
               {isPending ? "Salvando..." : "Salvar ativo"}

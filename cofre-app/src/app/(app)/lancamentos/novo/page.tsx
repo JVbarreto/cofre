@@ -112,7 +112,7 @@ export default function NovoLancamentoPage() {
                   gap: 8, borderRadius: 6, border: "none", cursor: "pointer",
                   fontSize: 14, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s",
                   background: form.type === t.value ? "var(--color-primary)" : "transparent",
-                  color: form.type === t.value ? "#FAFAFA" : "var(--color-text-2)",
+                  color: form.type === t.value ? "var(--color-on-primary)" : "var(--color-text-2)",
                 }}
               >
                 <svg viewBox="0 0 14 14" width="16" height="16" fill="currentColor">
@@ -242,10 +242,10 @@ export default function NovoLancamentoPage() {
               style={{
                 height: 48, padding: "0 24px", display: "flex", alignItems: "center",
                 background: "var(--color-primary)", borderRadius: 8, border: "none",
-                fontSize: 14, fontWeight: 600, color: "#FAFAFA",
+                fontSize: 14, fontWeight: 600, color: "var(--color-on-primary)",
                 cursor: isPending ? "not-allowed" : "pointer",
                 fontFamily: "inherit", opacity: isPending ? 0.7 : 1,
-                boxShadow: "0px 4px 24px 0px rgba(110, 86, 232, 0.33)",
+                boxShadow: "0px 4px 20px 0px var(--color-primary-glow)",
               }}
             >
               {isPending ? "Salvando..." : "Salvar lançamento"}
