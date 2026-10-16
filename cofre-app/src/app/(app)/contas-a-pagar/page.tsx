@@ -154,7 +154,7 @@ export default function ContasPagarPage() {
         setCategories((catData ?? []).map(mapCategoria));
 
         // Tenta carregar do Supabase
-        const { data: contasData, error: contasError } = await (supabase as any)
+        let { data: contasData, error: contasError } = await (supabase as any)
           .from("contas_pagar")
           .select("*")
           .eq("user_id", user.id)
@@ -171,63 +171,43 @@ export default function ContasPagarPage() {
             } catch {
               setContas([]);
             }
-          } else {
-            // Inicializa com alguns exemplos úteis caso esteja vazio
-            const demoContas: ContaPagarItem[] = [
-              {
-                id: "demo-1",
-                user_id: user.id,
-                titulo: "Energia Elétrica (CEMIG / Enel)",
-                descricao: "Conta de luz referente ao mês anterior. Verificar desconto para pagamento em dia.",
-                valor: 184.5,
-                prazo: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                data_pagamento: null,
-                importancia: "alta",
-                status: "pendente",
-                categoria_id: null,
-                codigo_barras: "83620000001-4 84500048100-3 10214062024-2 00000000000-0",
-                forma_pagamento: "boleto",
-                recorrente: true,
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "demo-2",
-                user_id: user.id,
-                titulo: "Fatura Cartão de Crédito",
-                descricao: "Pagamento do valor integral para não gerar juros rotativos.",
-                valor: 1420.0,
-                prazo: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                data_pagamento: null,
-                importancia: "urgente",
-                status: "pendente",
-                categoria_id: null,
-                codigo_barras: "00190.00009 01234.567890 12345.678901 2 94820000142000",
-                forma_pagamento: "pix",
-                recorrente: true,
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "demo-3",
-                user_id: user.id,
-                titulo: "Internet Fibra",
-                descricao: "Plano 500 Mega. Débito automático cadastrado.",
-                valor: 99.9,
-                prazo: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                data_pagamento: null,
-                importancia: "media",
-                status: "pendente",
-                categoria_id: null,
-                codigo_barras: null,
-                forma_pagamento: "debito_automatico",
-                recorrente: true,
-                created_at: new Date().toISOString(),
-              },
-            ];
-            setContas(demoContas);
-            localStorage.setItem(`${STORAGE_KEY_PREFIX}${user.id}`, JSON.stringify(demoContas));
           }
         } else {
           setUsingLocalStorage(false);
+          // Se o banco na nuvem acabou de ser criado e está vazio, mas o usuário tinha anotações locais, migra automaticamente
+          const localData = localStorage.getItem(`${STORAGE_KEY_PREFIX}${user.id}`);
+          if ((!contasData || contasData.length === 0) && localData) {
+            try {
+              const parsedLocal: ContaPagarItem[] = JSON.parse(localData);
+              if (parsedLocal.length > 0) {
+                for (const item of parsedLocal) {
+                  await (supabase as any).from("contas_pagar").insert({
+                    user_id: user.id,
+                    titulo: item.titulo,
+                    descricao: item.descricao,
+                    valor: item.valor,
+                    prazo: item.prazo,
+                    data_pagamento: item.data_pagamento,
+                    importancia: item.importancia,
+                    status: item.status,
+                    categoria_id: item.categoria_id,
+                    codigo_barras: item.codigo_barras,
+                    forma_pagamento: item.forma_pagamento,
+                    recorrente: item.recorrente,
+                  });
+                }
+                localStorage.removeItem(`${STORAGE_KEY_PREFIX}${user.id}`);
+                const { data: refreshed } = await (supabase as any)
+                  .from("contas_pagar")
+                  .select("*")
+                  .eq("user_id", user.id)
+                  .order("prazo", { ascending: true });
+                contasData = refreshed ?? parsedLocal;
+              }
+            } catch (migErr) {
+              console.warn("Erro ao migrar dados locais:", migErr);
+            }
+          }
           setContas((contasData as ContaPagarItem[]) ?? []);
         }
       } catch (err) {
@@ -685,7 +665,7 @@ export default function ContasPagarPage() {
         <div>
           <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span>Planejamento Financeiro</span>
-            {usingLocalStorage && (
+            {usingLocalStorage ? (
               <span
                 style={{
                   fontSize: 10,
@@ -698,6 +678,23 @@ export default function ContasPagarPage() {
               >
                 Modo Local (Offline/LocalStorage)
               </span>
+            ) : (
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  background: "var(--color-success-bg)",
+                  color: "var(--color-success)",
+                  border: "1px solid rgba(52, 211, 153, 0.25)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-success)" }} />
+                Supabase Sincronizado
+              </span>
             )}
           </div>
           <h1 className="h1">Contas a Pagar</h1>
@@ -707,15 +704,17 @@ export default function ContasPagarPage() {
         </div>
 
         <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            onClick={() => setShowSqlModal(true)}
-            className="btn btn-ghost"
-            title="Ver Script SQL da tabela no Supabase"
-            style={{ fontSize: "var(--text-sm)", height: 38 }}
-          >
-            <DatabaseIcon size={15} />
-            SQL Supabase
-          </button>
+          {usingLocalStorage && (
+            <button
+              onClick={() => setShowSqlModal(true)}
+              className="btn btn-ghost"
+              title="Ver Script SQL da tabela no Supabase"
+              style={{ fontSize: "var(--text-sm)", height: 38 }}
+            >
+              <DatabaseIcon size={15} />
+              SQL Supabase
+            </button>
+          )}
 
           <button onClick={handleOpenCreate} className="btn btn-primary" style={{ height: 38 }}>
             <Plus size={16} strokeWidth={2} />
