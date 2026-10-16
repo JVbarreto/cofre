@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="dialGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fundo com cantos arredondados e borda sutil de destaque -->
+  <rect width="64" height="64" rx="16" fill="url(#bgGrad)"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-opacity="0.45"/>
+
+  <!-- Corpo do Cofre -->
+  <rect x="13" y="13" width="38" height="38" rx="8" fill="#101726" stroke="url(#glowGrad)" stroke-width="2.5"/>
+
+  <!-- Dobradiças à esquerda -->
+  <rect x="9.5" y="19" width="3.5" height="7" rx="1.5" fill="#3b82f6"/>
+  <rect x="9.5" y="38" width="3.5" height="7" rx="1.5" fill="#3b82f6"/>
+
+  <!-- Disco giratório / Volante do Cofre -->
+  <circle cx="32" cy="32" r="10" fill="url(#dialGrad)" stroke="#ffffff" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="4" fill="#ffffff"/>
+
+  <!-- Raios da roda do cofre (manoplas) -->
+  <line x1="32" y1="22" x2="32" y2="18" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="32" y1="42" x2="32" y2="46" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="22" y1="32" x2="18" y2="32" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="42" y1="32" x2="46" y2="32" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Luz verde esmeralda de segurança ativa -->
+  <circle cx="45" cy="20" r="2.5" fill="#34d399"/>
+</svg>

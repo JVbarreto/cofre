@@ -18,6 +18,14 @@ const instrument = Instrument_Sans({
 export const metadata: Metadata = {
   title: "Cofre — Controle Financeiro Pessoal",
   description: "Organize suas finanças: entradas, saídas, investimentos e relatórios.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
