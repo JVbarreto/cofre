@@ -54,26 +54,28 @@ export default async function LancamentosPage() {
             <Link href="/lancamentos/novo" className="btn btn-ghost">Novo lançamento</Link>
           </div>
         ) : (
-          <div className="table cols-tx">
-            <div className="table-head">
-              <div>Data</div><div>Descrição</div><div>Categoria</div><div>Tipo</div><div className="num">Valor</div>
-            </div>
-            {list.map(t => (
-              <div key={t.id} className="table-row">
-                <div className="muted num" style={{ textAlign: "left" }}>{dayMonth(t.date)}</div>
-                <div className="strong">
-                  {t.description}
-                  {t.is_recurring && <span className="badge" style={{ marginLeft: "var(--sp-2)" }}>recorrente</span>}
-                </div>
-                <div className="muted">{t.category?.name ?? "Sem categoria"}</div>
-                <div className={t.type === "income" ? "amount-in" : "amount-out"}>
-                  {t.type === "income" ? "Entrada" : "Saída"}
-                </div>
-                <div className={`num ${t.type === "income" ? "amount-in" : "amount-out"}`}>
-                  {t.type === "income" ? "" : "− "}{formatBRL(t.amount)}
-                </div>
+          <div className="table-responsive">
+            <div className="table cols-tx">
+              <div className="table-head">
+                <div>Data</div><div>Descrição</div><div>Categoria</div><div>Tipo</div><div className="num">Valor</div>
               </div>
-            ))}
+              {list.map(t => (
+                <div key={t.id} className="table-row">
+                  <div className="muted num" style={{ textAlign: "left" }}>{dayMonth(t.date)}</div>
+                  <div className="strong">
+                    {t.description}
+                    {t.is_recurring && <span className="badge" style={{ marginLeft: "var(--sp-2)" }}>recorrente</span>}
+                  </div>
+                  <div className="muted">{t.category?.name ?? "Sem categoria"}</div>
+                  <div className={t.type === "income" ? "amount-in" : "amount-out"}>
+                    {t.type === "income" ? "Entrada" : "Saída"}
+                  </div>
+                  <div className={`num ${t.type === "income" ? "amount-in" : "amount-out"}`}>
+                    {t.type === "income" ? "" : "− "}{formatBRL(t.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>

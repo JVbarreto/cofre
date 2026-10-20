@@ -146,7 +146,7 @@ export default async function DashboardPage() {
         </Link>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr)", gap: "var(--sp-12)" }} className="dash-grid">
+      <div className="dash-grid">
 
         {/* Saldo do mês: o número principal, com as contas que o compõem */}
         <section className="section" aria-labelledby="saldo-titulo">
@@ -243,39 +243,41 @@ export default async function DashboardPage() {
             <Link href="/contas-a-pagar" className="btn btn-ghost">Anotar nova conta</Link>
           </div>
         ) : (
-          <div className="table" style={{ "--cols": "110px minmax(0, 1.4fr) 130px 110px 130px" } as React.CSSProperties}>
-            <div className="table-head">
-              <div>Prioridade</div><div>Conta</div><div>Vencimento</div><div>Forma</div><div className="num">Valor</div>
+          <div className="table-responsive">
+            <div className="table" style={{ "--cols": "110px minmax(0, 1.4fr) 130px 110px 130px", minWidth: 540 } as React.CSSProperties}>
+              <div className="table-head">
+                <div>Prioridade</div><div>Conta</div><div>Vencimento</div><div>Forma</div><div className="num">Valor</div>
+              </div>
+              {nextBills.map(b => {
+                const due = getDueBadge(b.prazo);
+                const imp = getImportanciaBadge(b.importancia);
+                return (
+                  <div key={b.id} className="table-row">
+                    <div>
+                      <span style={{ color: imp.color, fontSize: "var(--text-xs)", fontWeight: "var(--weight-strong)" }}>
+                        {imp.label}
+                      </span>
+                    </div>
+                    <div className="strong" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Link href="/contas-a-pagar" style={{ color: "inherit" }}>
+                        {b.titulo}
+                      </Link>
+                    </div>
+                    <div>
+                      <span className={`badge ${due.badgeClass}`}>
+                        {due.label}
+                      </span>
+                    </div>
+                    <div className="muted" style={{ textTransform: "capitalize", fontSize: "var(--text-xs)" }}>
+                      {b.forma_pagamento ? b.forma_pagamento.replace("_", " ") : "Boleto"}
+                    </div>
+                    <div className="num" style={{ fontWeight: "var(--weight-strong)", color: "var(--color-text)" }}>
+                      {formatBRL(Number(b.valor))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {nextBills.map(b => {
-              const due = getDueBadge(b.prazo);
-              const imp = getImportanciaBadge(b.importancia);
-              return (
-                <div key={b.id} className="table-row">
-                  <div>
-                    <span style={{ color: imp.color, fontSize: "var(--text-xs)", fontWeight: "var(--weight-strong)" }}>
-                      {imp.label}
-                    </span>
-                  </div>
-                  <div className="strong" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Link href="/contas-a-pagar" style={{ color: "inherit" }}>
-                      {b.titulo}
-                    </Link>
-                  </div>
-                  <div>
-                    <span className={`badge ${due.badgeClass}`}>
-                      {due.label}
-                    </span>
-                  </div>
-                  <div className="muted" style={{ textTransform: "capitalize", fontSize: "var(--text-xs)" }}>
-                    {b.forma_pagamento ? b.forma_pagamento.replace("_", " ") : "Boleto"}
-                  </div>
-                  <div className="num" style={{ fontWeight: "var(--weight-strong)", color: "var(--color-text)" }}>
-                    {formatBRL(Number(b.valor))}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
       </section>
@@ -294,20 +296,22 @@ export default async function DashboardPage() {
             <Link href="/lancamentos/novo" className="btn btn-ghost">Novo lançamento</Link>
           </div>
         ) : (
-          <div className="table cols-dash">
-            <div className="table-head">
-              <div>Data</div><div>Descrição</div><div>Categoria</div><div className="num">Valor</div>
-            </div>
-            {recentTransactions.map(t => (
-              <div key={t.id} className="table-row">
-                <div className="muted num" style={{ textAlign: "left" }}>{dayMonth(t.date)}</div>
-                <div className="strong">{t.description}</div>
-                <div className="muted">{t.category?.name ?? "Sem categoria"}</div>
-                <div className={`num ${t.type === "income" ? "amount-in" : "amount-out"}`}>
-                  {t.type === "income" ? "" : "− "}{formatBRL(t.amount)}
-                </div>
+          <div className="table-responsive">
+            <div className="table cols-dash">
+              <div className="table-head">
+                <div>Data</div><div>Descrição</div><div>Categoria</div><div className="num">Valor</div>
               </div>
-            ))}
+              {recentTransactions.map(t => (
+                <div key={t.id} className="table-row">
+                  <div className="muted num" style={{ textAlign: "left" }}>{dayMonth(t.date)}</div>
+                  <div className="strong">{t.description}</div>
+                  <div className="muted">{t.category?.name ?? "Sem categoria"}</div>
+                  <div className={`num ${t.type === "income" ? "amount-in" : "amount-out"}`}>
+                    {t.type === "income" ? "" : "− "}{formatBRL(t.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>

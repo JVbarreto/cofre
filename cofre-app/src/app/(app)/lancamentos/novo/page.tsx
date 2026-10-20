@@ -65,12 +65,12 @@ export default function NovoLancamentoPage() {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "32px 32px", display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "var(--sp-6) var(--sp-4) calc(var(--sp-12) + 68px)", display: "flex", flexDirection: "column" }}>
 
       {/* HEADER */}
-      <div style={{ marginBottom: 32 }}>
+      <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 14, color: "var(--color-text-2)", marginBottom: 4 }}>{currentDate}</div>
-        <h1 style={{ fontSize: 44, fontWeight: 600, color: "var(--color-text)", letterSpacing: "-0.5px", margin: "0 0 8px" }}>
+        <h1 style={{ fontSize: "clamp(28px, 6vw, 44px)", fontWeight: 600, color: "var(--color-text)", letterSpacing: "-0.5px", margin: "0 0 8px" }}>
           Novo lançamento
         </h1>
         <div style={{ fontSize: 14, color: "var(--color-text-2)" }}>
@@ -78,14 +78,15 @@ export default function NovoLancamentoPage() {
         </div>
       </div>
 
-      <div style={{ width: "100%", height: 1, background: "var(--color-border)", marginBottom: 32 }} />
+      <div style={{ width: "100%", height: 1, background: "var(--color-border)", marginBottom: 24 }} />
 
       {/* FORM CARD */}
       <div style={{
-        width: 584,
+        width: "100%",
+        maxWidth: 584,
         background: "var(--color-surface-2)",
         outline: "1px solid var(--color-border)", outlineOffset: "-0.5px",
-        borderRadius: 8, padding: 28,
+        borderRadius: 8, padding: "var(--sp-6) var(--sp-4)",
         display: "flex", flexDirection: "column", gap: 22,
       }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-text)", letterSpacing: "-0.3px" }}>
@@ -141,8 +142,8 @@ export default function NovoLancamentoPage() {
           </div>
 
           {/* Row: Valor + Categoria */}
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 8 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Valor*</label>
               <input
                 type="text" inputMode="decimal"
@@ -154,7 +155,7 @@ export default function NovoLancamentoPage() {
               />
               {fieldErrors.amount && <p style={{ fontSize: 12, color: "var(--color-danger)", margin: 0 }}>{fieldErrors.amount}</p>}
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 8 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>Categoria*</label>
               <div style={{ position: "relative" }}>
                 <select
@@ -225,13 +226,14 @@ export default function NovoLancamentoPage() {
           )}
 
           {/* Actions */}
-          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
             <Link
               href="/lancamentos"
               style={{
-                height: 48, padding: "0 24px", display: "flex", alignItems: "center",
+                height: 48, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "center",
                 outline: "1px solid var(--color-border)", outlineOffset: "-0.5px", borderRadius: 8,
                 fontSize: 14, fontWeight: 600, color: "var(--color-text-2)", textDecoration: "none",
+                flex: "1 1 120px",
               }}
             >
               Cancelar
@@ -240,12 +242,13 @@ export default function NovoLancamentoPage() {
               type="submit"
               disabled={isPending}
               style={{
-                height: 48, padding: "0 24px", display: "flex", alignItems: "center",
+                height: 48, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "center",
                 background: "var(--color-primary)", borderRadius: 8, border: "none",
                 fontSize: 14, fontWeight: 600, color: "var(--color-on-primary)",
                 cursor: isPending ? "not-allowed" : "pointer",
                 fontFamily: "inherit", opacity: isPending ? 0.7 : 1,
                 boxShadow: "0px 4px 20px 0px var(--color-primary-glow)",
+                flex: "1 1 180px",
               }}
             >
               {isPending ? "Salvando..." : "Salvar lançamento"}

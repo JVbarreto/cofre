@@ -53,7 +53,7 @@ export default async function InvestimentosPage() {
         </div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr)", gap: "var(--sp-12)" }} className="dash-grid">
+          <div className="dash-grid">
             <section className="section" aria-labelledby="total-titulo">
               <h2 id="total-titulo" className="eyebrow">Total investido</h2>
               <div
@@ -93,18 +93,20 @@ export default async function InvestimentosPage() {
 
           <section className="section" aria-labelledby="ativos-titulo">
             <h2 id="ativos-titulo" className="h2">Ativos</h2>
-            <div className="table cols-inv">
-              <div className="table-head">
-                <div>Ativo</div><div>Tipo</div><div className="num">Valor aplicado</div><div className="num">Valor atual</div>
-              </div>
-              {investments.map(inv => (
-                <div key={inv.id} className="table-row">
-                  <div className="strong">{inv.name}</div>
-                  <div className="muted">{ASSET_LABELS[inv.asset_type] ?? inv.asset_type}</div>
-                  <div className="muted num">{formatBRL(inv.initial_value)}</div>
-                  <div className="num strong">{formatBRL(value(inv))}</div>
+            <div className="table-responsive">
+              <div className="table cols-inv">
+                <div className="table-head">
+                  <div>Ativo</div><div>Tipo</div><div className="num">Valor aplicado</div><div className="num">Valor atual</div>
                 </div>
-              ))}
+                {investments.map(inv => (
+                  <div key={inv.id} className="table-row">
+                    <div className="strong">{inv.name}</div>
+                    <div className="muted">{ASSET_LABELS[inv.asset_type] ?? inv.asset_type}</div>
+                    <div className="muted num">{formatBRL(inv.initial_value)}</div>
+                    <div className="num strong">{formatBRL(value(inv))}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
         </>

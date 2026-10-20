@@ -724,35 +724,16 @@ export default function ContasPagarPage() {
       </header>
 
       {/* CARDS DE RESUMO / MÉTRICAS */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-          gap: "var(--sp-4)",
-        }}
-      >
+      <div className="metrics-grid">
         {/* Total a Pagar */}
-        <div
-          style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            padding: "var(--sp-4) var(--sp-5)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
+        <div className="metrics-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span className="eyebrow">Total a Pagar</span>
             <DollarSign size={16} className="muted" />
           </div>
           <div
-            className="num"
+            className="num metrics-num"
             style={{
-              fontSize: "var(--text-xl)",
-              fontWeight: "var(--weight-strong)",
-              fontFamily: "var(--font-display)",
               textAlign: "left",
             }}
           >
@@ -765,14 +746,10 @@ export default function ContasPagarPage() {
 
         {/* Contas Atrasadas */}
         <div
+          className="metrics-card"
           style={{
-            background: metrics.countAtrasadas > 0 ? "rgba(248, 113, 113, 0.08)" : "var(--color-surface)",
-            border: `1px solid ${metrics.countAtrasadas > 0 ? "rgba(248, 113, 113, 0.35)" : "var(--color-border)"}`,
-            borderRadius: "var(--radius-sm)",
-            padding: "var(--sp-4) var(--sp-5)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
+            background: metrics.countAtrasadas > 0 ? "rgba(248, 113, 113, 0.08)" : undefined,
+            borderColor: metrics.countAtrasadas > 0 ? "rgba(248, 113, 113, 0.35)" : undefined,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -782,11 +759,8 @@ export default function ContasPagarPage() {
             <AlertTriangle size={16} color={metrics.countAtrasadas > 0 ? "var(--color-danger)" : "var(--color-text-3)"} />
           </div>
           <div
-            className="num"
+            className="num metrics-num"
             style={{
-              fontSize: "var(--text-xl)",
-              fontWeight: "var(--weight-strong)",
-              fontFamily: "var(--font-display)",
               textAlign: "left",
               color: metrics.countAtrasadas > 0 ? "var(--color-danger)" : "var(--color-text)",
             }}
@@ -800,14 +774,10 @@ export default function ContasPagarPage() {
 
         {/* Vencem em breve (7 dias) */}
         <div
+          className="metrics-card"
           style={{
-            background: metrics.countProximos7Dias > 0 ? "rgba(251, 191, 36, 0.08)" : "var(--color-surface)",
-            border: `1px solid ${metrics.countProximos7Dias > 0 ? "rgba(251, 191, 36, 0.35)" : "var(--color-border)"}`,
-            borderRadius: "var(--radius-sm)",
-            padding: "var(--sp-4) var(--sp-5)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
+            background: metrics.countProximos7Dias > 0 ? "rgba(251, 191, 36, 0.08)" : undefined,
+            borderColor: metrics.countProximos7Dias > 0 ? "rgba(251, 191, 36, 0.35)" : undefined,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -817,11 +787,8 @@ export default function ContasPagarPage() {
             <Clock size={16} color={metrics.countProximos7Dias > 0 ? "var(--color-warning)" : "var(--color-text-3)"} />
           </div>
           <div
-            className="num"
+            className="num metrics-num"
             style={{
-              fontSize: "var(--text-xl)",
-              fontWeight: "var(--weight-strong)",
-              fontFamily: "var(--font-display)",
               textAlign: "left",
               color: metrics.countProximos7Dias > 0 ? "var(--color-warning)" : "var(--color-text)",
             }}
@@ -834,27 +801,14 @@ export default function ContasPagarPage() {
         </div>
 
         {/* Já Pagas */}
-        <div
-          style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
-            padding: "var(--sp-4) var(--sp-5)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
+        <div className="metrics-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span className="eyebrow">Total Pago</span>
             <CheckCircle2 size={16} color="var(--color-success)" />
           </div>
           <div
-            className="num"
+            className="num metrics-num"
             style={{
-              fontSize: "var(--text-xl)",
-              fontWeight: "var(--weight-strong)",
-              fontFamily: "var(--font-display)",
               textAlign: "left",
               color: "var(--color-success)",
             }}
@@ -881,7 +835,7 @@ export default function ContasPagarPage() {
         }}
       >
         {/* Campo de Busca */}
-        <div style={{ position: "relative", flex: "1 1 220px", minWidth: 200 }}>
+        <div style={{ position: "relative", flex: "1 1 200px", minWidth: 180 }}>
           <Search
             size={16}
             style={{
@@ -924,7 +878,7 @@ export default function ContasPagarPage() {
         </div>
 
         {/* Segmented Status */}
-        <div className="segmented" style={{ height: 38, padding: 2 }}>
+        <div className="segmented" style={{ height: 38, padding: 2, overflowX: "auto", maxWidth: "100%", scrollbarWidth: "none" }}>
           {(
             [
               { id: "pendentes", label: "Pendentes" },
@@ -938,7 +892,7 @@ export default function ContasPagarPage() {
               type="button"
               aria-pressed={statusFilter === tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              style={{ fontSize: "var(--text-xs)", padding: "0 10px", height: 32 }}
+              style={{ fontSize: "var(--text-xs)", padding: "0 10px", height: 32, whiteSpace: "nowrap" }}
             >
               {tab.label}
             </button>
@@ -950,7 +904,7 @@ export default function ContasPagarPage() {
           value={importanciaFilter}
           onChange={e => setImportanciaFilter(e.target.value)}
           className="input"
-          style={{ width: "auto", minWidth: 140, height: 38, fontSize: "var(--text-sm)" }}
+          style={{ flex: "1 1 140px", minWidth: 130, height: 38, fontSize: "var(--text-sm)" }}
         >
           <option value="todas">Todas prioridades</option>
           <option value="urgente">🚨 Urgente</option>
@@ -964,7 +918,7 @@ export default function ContasPagarPage() {
           value={sortBy}
           onChange={e => setSortBy(e.target.value as any)}
           className="input"
-          style={{ width: "auto", minWidth: 150, height: 38, fontSize: "var(--text-sm)" }}
+          style={{ flex: "1 1 140px", minWidth: 130, height: 38, fontSize: "var(--text-sm)" }}
         >
           <option value="prazo">Ordenar: Prazo</option>
           <option value="importancia">Ordenar: Prioridade</option>
@@ -1019,17 +973,9 @@ export default function ContasPagarPage() {
                   }}
                 >
                   {/* Linha Principal */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: "var(--sp-4)",
-                      flexWrap: "wrap",
-                    }}
-                  >
+                  <div className="conta-item-main">
                     {/* Checkbox Status + Título + Badges */}
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--sp-3)", flex: "1 1 320px" }}>
+                    <div className="conta-info-col">
                       <button
                         type="button"
                         onClick={() => handleToggleStatus(conta)}
@@ -1141,14 +1087,7 @@ export default function ContasPagarPage() {
                     </div>
 
                     {/* Valor e Ações */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "var(--sp-4)",
-                        marginLeft: "auto",
-                      }}
-                    >
+                    <div className="conta-valor-acoes">
                       <div style={{ textAlign: "right" }}>
                         <div
                           className="num"
@@ -1419,7 +1358,7 @@ export default function ContasPagarPage() {
               {/* Nível de Importância */}
               <div className="field">
                 <label className="label">Nível de Importância / Prioridade*</label>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 6 }}>
                   {(
                     [
                       { id: "urgente", label: "Urgente", icon: "🚨", color: "var(--color-danger)" },
@@ -1651,7 +1590,7 @@ CREATE POLICY "contas_pagar: crud proprio"
   WITH CHECK (auth.uid() = user_id);`}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <span className="hint">Arquivo gravado em: cofre-app-sql/003_contas_pagar.sql</span>
               <button
                 type="button"

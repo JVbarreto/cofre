@@ -98,24 +98,26 @@ export default async function RelatoriosPage() {
                 <span><i className="bar-out" />Saídas</span>
               </div>
             </div>
-            <div className="bars" role="img" aria-label="Gráfico de barras de entradas e saídas por mês">
-              {monthlySummary.map(m => {
-                const incH = ((m.total_income ?? 0) / maxBar) * 100;
-                const expH = ((m.total_expense ?? 0) / maxBar) * 100;
-                return (
-                  <div key={m.month} className="bar-group">
-                    <div className="bar-pair">
-                      <span className="bar-in"  style={{ height: `${incH}%` }} title={`Entradas: ${formatBRL(m.total_income ?? 0)}`} />
-                      <span className="bar-out" style={{ height: `${expH}%` }} title={`Saídas: ${formatBRL(m.total_expense ?? 0)}`} />
+            <div style={{ width: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <div className="bars" style={{ minWidth: 320 }} role="img" aria-label="Gráfico de barras de entradas e saídas por mês">
+                {monthlySummary.map(m => {
+                  const incH = ((m.total_income ?? 0) / maxBar) * 100;
+                  const expH = ((m.total_expense ?? 0) / maxBar) * 100;
+                  return (
+                    <div key={m.month} className="bar-group">
+                      <div className="bar-pair">
+                        <span className="bar-in"  style={{ height: `${incH}%` }} title={`Entradas: ${formatBRL(m.total_income ?? 0)}`} />
+                        <span className="bar-out" style={{ height: `${expH}%` }} title={`Saídas: ${formatBRL(m.total_expense ?? 0)}`} />
+                      </div>
+                      <div className="bar-label">{m.month ? getMonthLabel(atNoon(m.month)).replace(".", "") : ""}</div>
                     </div>
-                    <div className="bar-label">{m.month ? getMonthLabel(atNoon(m.month)).replace(".", "") : ""}</div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </section>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "var(--sp-12)" }} className="dash-grid">
+          <div className="dash-grid">
             <section className="section" aria-labelledby="categorias-titulo">
               <h2 id="categorias-titulo" className="h2">Gastos por categoria</h2>
               {sortedCategories.length === 0 ? (
@@ -159,27 +161,29 @@ export default async function RelatoriosPage() {
 
           <section className="section" aria-labelledby="historico-titulo">
             <h2 id="historico-titulo" className="h2">Histórico mensal</h2>
-            <div className="table cols-month">
-              <div className="table-head">
-                <div>Mês</div><div className="num">Entradas</div><div className="num">Saídas</div><div className="num">Saldo</div><div className="num">Poupança</div>
+            <div className="table-responsive">
+              <div className="table cols-month" style={{ minWidth: 540 }}>
+                <div className="table-head">
+                  <div>Mês</div><div className="num">Entradas</div><div className="num">Saídas</div><div className="num">Saldo</div><div className="num">Poupança</div>
+                </div>
+                {monthlySummary.slice().reverse().map((m, i) => {
+                  const net = m.net ?? 0;
+                  const rate = (m.total_income ?? 0) > 0 ? (net / (m.total_income ?? 1)) * 100 : 0;
+                  return (
+                    <div key={m.month || i} className="table-row">
+                      <div className="strong" style={{ textTransform: "capitalize" }}>
+                        {m.month ? new Date(atNoon(m.month)).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "—"}
+                      </div>
+                      <div className="num amount-in">{formatBRL(m.total_income ?? 0)}</div>
+                      <div className="num amount-out">{formatBRL(m.total_expense ?? 0)}</div>
+                      <div className={`num strong ${net >= 0 ? "amount-in" : "amount-out"}`}>{formatBRL(net)}</div>
+                      <div className="num">
+                        <span className={`badge ${rate >= 30 ? "badge-success" : rate >= 10 ? "badge-warning" : "badge-danger"}`}>{rate.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              {monthlySummary.slice().reverse().map((m, i) => {
-                const net = m.net ?? 0;
-                const rate = (m.total_income ?? 0) > 0 ? (net / (m.total_income ?? 1)) * 100 : 0;
-                return (
-                  <div key={m.month || i} className="table-row">
-                    <div className="strong" style={{ textTransform: "capitalize" }}>
-                      {m.month ? new Date(atNoon(m.month)).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "—"}
-                    </div>
-                    <div className="num amount-in">{formatBRL(m.total_income ?? 0)}</div>
-                    <div className="num amount-out">{formatBRL(m.total_expense ?? 0)}</div>
-                    <div className={`num strong ${net >= 0 ? "amount-in" : "amount-out"}`}>{formatBRL(net)}</div>
-                    <div className="num">
-                      <span className={`badge ${rate >= 30 ? "badge-success" : rate >= 10 ? "badge-warning" : "badge-danger"}`}>{rate.toFixed(0)}%</span>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </section>
         </>
