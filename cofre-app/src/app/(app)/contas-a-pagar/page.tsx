@@ -637,10 +637,9 @@ export default function ContasPagarPage() {
       {/* Toast Feedback */}
       {feedbackMessage && (
         <div
+          className="toast"
           style={{
             position: "fixed",
-            bottom: 24,
-            right: 24,
             zIndex: 1000,
             padding: "12px 20px",
             borderRadius: "var(--radius-sm)",

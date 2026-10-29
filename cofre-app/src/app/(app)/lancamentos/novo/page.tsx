@@ -61,7 +61,7 @@ export default function NovoLancamentoPage() {
     background: "var(--color-surface-2)",
     border: "none", outline: "1px solid var(--color-border)", outlineOffset: "-0.5px",
     borderRadius: 8, padding: "0 16px",
-    fontSize: 14, color: "var(--color-text)", fontFamily: "inherit",
+    fontSize: 16, color: "var(--color-text)", fontFamily: "inherit",
   };
 
   return (

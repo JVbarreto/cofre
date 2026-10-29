@@ -326,6 +326,8 @@ select.input { appearance: none; padding-right: var(--sp-10); cursor: pointer;
   display: none;
 }
 
+.toast { bottom: 24px; right: 24px; max-width: calc(100vw - 48px); }
+
 .mobile-bottom-nav {
   display: none;
 }
@@ -336,8 +338,8 @@ select.input { appearance: none; padding-right: var(--sp-10); cursor: pointer;
   .app-layout {
     display: flex;
     flex-direction: column;
-    min-height: 100dvh;
     min-height: 100vh;
+    min-height: 100dvh;
     height: auto;
     overflow: visible;
   }
@@ -625,6 +627,14 @@ select.input { appearance: none; padding-right: var(--sp-10); cursor: pointer;
     padding: var(--sp-3) var(--sp-2);
     gap: var(--sp-2);
     border-bottom: 1px solid var(--color-border);
+  }
+
+  /* Toast acima da bottom nav */
+  .toast {
+    left: var(--sp-4);
+    right: var(--sp-4);
+    max-width: none;
+    bottom: calc(58px + var(--sp-3) + env(safe-area-inset-bottom, 0px));
   }
 }
 
