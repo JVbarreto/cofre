@@ -65,7 +65,7 @@ export default function NovoLancamentoPage() {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "var(--sp-6) var(--sp-4) calc(var(--sp-12) + 68px)", display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "var(--sp-6) var(--sp-4) calc(var(--sp-12) + 68px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column" }}>
 
       {/* HEADER */}
       <div style={{ marginBottom: 24 }}>
@@ -97,7 +97,7 @@ export default function NovoLancamentoPage() {
 
           {/* Segmented Tipo */}
           <div style={{
-            width: "100%", height: 48, display: "flex", gap: 4, padding: 4,
+            width: "100%", minHeight: 48, display: "flex", gap: 4, padding: 4,
             outline: "1px solid var(--color-border)", outlineOffset: "-0.5px", borderRadius: 8,
           }}>
             {[

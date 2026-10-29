@@ -220,6 +220,24 @@ export default function ContasPagarPage() {
     loadData();
   }, []);
 
+  // Trava scroll do body e fecha modais com Escape (acessibilidade WAI-ARIA)
+  useEffect(() => {
+    if (!isModalOpen && !showSqlModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsModalOpen(false);
+        setShowSqlModal(false);
+      }
+    };
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isModalOpen, showSqlModal]);
+
   // Salvar no storage local se necessário
   function persistLocal(items: ContaPagarItem[]) {
     if (userId) {
@@ -708,14 +726,14 @@ export default function ContasPagarPage() {
               onClick={() => setShowSqlModal(true)}
               className="btn btn-ghost"
               title="Ver Script SQL da tabela no Supabase"
-              style={{ fontSize: "var(--text-sm)", height: 38 }}
+              style={{ fontSize: "var(--text-sm)", minHeight: 44, display: "inline-flex", alignItems: "center" }}
             >
               <DatabaseIcon size={15} />
               SQL Supabase
             </button>
           )}
 
-          <button onClick={handleOpenCreate} className="btn btn-primary" style={{ height: 38 }}>
+          <button onClick={handleOpenCreate} className="btn btn-primary" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
             <Plus size={16} strokeWidth={2} />
             Nova Conta
           </button>
@@ -851,33 +869,42 @@ export default function ContasPagarPage() {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="input"
+            aria-label="Buscar por conta, anotação ou código"
             style={{
               paddingLeft: 38,
-              height: 38,
+              paddingRight: searchTerm ? 38 : 12,
+              height: 44,
               fontSize: "var(--text-sm)",
             }}
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
+              aria-label="Limpar busca"
+              title="Limpar busca"
               style={{
                 position: "absolute",
-                right: 10,
+                right: 4,
                 top: "50%",
                 transform: "translateY(-50%)",
                 background: "transparent",
                 border: "none",
                 cursor: "pointer",
                 color: "var(--color-text-3)",
+                minWidth: 36,
+                minHeight: 36,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           )}
         </div>
 
         {/* Segmented Status */}
-        <div className="segmented" style={{ height: 38, padding: 2, overflowX: "auto", maxWidth: "100%", scrollbarWidth: "none" }}>
+        <div className="segmented" style={{ minHeight: 44, padding: 3, overflowX: "auto", maxWidth: "100%", scrollbarWidth: "none" }}>
           {(
             [
               { id: "pendentes", label: "Pendentes" },
@@ -891,7 +918,7 @@ export default function ContasPagarPage() {
               type="button"
               aria-pressed={statusFilter === tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              style={{ fontSize: "var(--text-xs)", padding: "0 10px", height: 32, whiteSpace: "nowrap" }}
+              style={{ fontSize: "var(--text-xs)", padding: "0 12px", minHeight: 36, whiteSpace: "nowrap" }}
             >
               {tab.label}
             </button>
@@ -900,10 +927,12 @@ export default function ContasPagarPage() {
 
         {/* Filtro de Importância */}
         <select
+          id="filtro-prioridade"
+          aria-label="Filtrar por prioridade"
           value={importanciaFilter}
           onChange={e => setImportanciaFilter(e.target.value)}
           className="input"
-          style={{ flex: "1 1 140px", minWidth: 130, height: 38, fontSize: "var(--text-sm)" }}
+          style={{ flex: "1 1 140px", minWidth: 130, height: 44, fontSize: "var(--text-sm)" }}
         >
           <option value="todas">Todas prioridades</option>
           <option value="urgente">🚨 Urgente</option>
@@ -914,10 +943,12 @@ export default function ContasPagarPage() {
 
         {/* Ordenação */}
         <select
+          id="filtro-ordenacao"
+          aria-label="Ordenar contas a pagar"
           value={sortBy}
           onChange={e => setSortBy(e.target.value as any)}
           className="input"
-          style={{ flex: "1 1 140px", minWidth: 130, height: 38, fontSize: "var(--text-sm)" }}
+          style={{ flex: "1 1 140px", minWidth: 130, height: 44, fontSize: "var(--text-sm)" }}
         >
           <option value="prazo">Ordenar: Prazo</option>
           <option value="importancia">Ordenar: Prioridade</option>
@@ -979,24 +1010,29 @@ export default function ContasPagarPage() {
                         type="button"
                         onClick={() => handleToggleStatus(conta)}
                         title={isPago ? "Marcar como pendente" : "Marcar como paga"}
+                        aria-label={isPago ? "Marcar como pendente" : "Marcar como paga"}
                         style={{
                           background: "transparent",
                           border: "none",
                           cursor: "pointer",
-                          padding: 2,
-                          marginTop: 2,
+                          padding: 4,
+                          minWidth: 44,
+                          minHeight: 44,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
                           color: isPago ? "var(--color-success)" : "var(--color-text-3)",
                           transition: "color var(--dur) var(--ease), transform 0.1s ease",
                         }}
                       >
                         {isPago ? (
-                          <CheckCircle2 size={22} color="var(--color-success)" />
+                          <CheckCircle2 size={24} color="var(--color-success)" />
                         ) : (
-                          <Circle size={22} />
+                          <Circle size={24} />
                         )}
                       </button>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <span
                             style={{
@@ -1004,6 +1040,8 @@ export default function ContasPagarPage() {
                               fontWeight: "var(--weight-strong)",
                               color: isPago ? "var(--color-text-2)" : "var(--color-text)",
                               textDecoration: isPago ? "line-through" : "none",
+                              overflowWrap: "break-word",
+                              wordBreak: "break-word",
                             }}
                           >
                             {conta.titulo}
@@ -1109,17 +1147,18 @@ export default function ContasPagarPage() {
                       </div>
 
                       {/* Botões de Ação */}
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         {/* Se pago, opção de lançar no caixa com 1 clique */}
                         {isPago && (
                           <button
                             type="button"
                             onClick={() => handleLancarNoCaixa(conta)}
                             className="btn btn-ghost"
-                            style={{ height: 32, padding: "0 10px", fontSize: 12 }}
+                            style={{ minHeight: 38, padding: "0 12px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}
                             title="Lançar como despesa no livro-caixa do Cofre"
+                            aria-label="Lançar no caixa"
                           >
-                            <ArrowUpRight size={13} /> Lançar no Caixa
+                            <ArrowUpRight size={14} /> Lançar no Caixa
                           </button>
                         )}
 
@@ -1127,20 +1166,22 @@ export default function ContasPagarPage() {
                           type="button"
                           onClick={() => handleOpenEdit(conta)}
                           className="btn btn-ghost"
-                          style={{ width: 32, height: 32, padding: 0 }}
+                          style={{ minWidth: 44, minHeight: 44, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                           title="Editar anotação"
+                          aria-label="Editar anotação"
                         >
-                          <Edit3 size={15} />
+                          <Edit3 size={16} />
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleDelete(conta.id)}
                           className="btn btn-ghost"
-                          style={{ width: 32, height: 32, padding: 0, color: "var(--color-danger)" }}
+                          style={{ minWidth: 44, minHeight: 44, padding: 0, color: "var(--color-danger)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                           title="Excluir anotação"
+                          aria-label="Excluir anotação"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
@@ -1232,6 +1273,9 @@ export default function ContasPagarPage() {
       {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
       {isModalOpen && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-conta-title"
           style={{
             position: "fixed",
             inset: 0,
@@ -1251,7 +1295,7 @@ export default function ContasPagarPage() {
             style={{
               width: "100%",
               maxWidth: 580,
-              maxHeight: "90vh",
+              maxHeight: "min(90vh, 90dvh)",
               overflowY: "auto",
               background: "var(--color-surface)",
               border: "1px solid var(--color-border-light)",
@@ -1264,9 +1308,9 @@ export default function ContasPagarPage() {
             }}
           >
             {/* Cabeçalho do Modal */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--sp-3)" }}>
               <div>
-                <h2 className="h2">{editingConta ? "Editar Anotação de Conta" : "Nova Anotação de Conta a Pagar"}</h2>
+                <h2 id="modal-conta-title" className="h2">{editingConta ? "Editar Anotação de Conta" : "Nova Anotação de Conta a Pagar"}</h2>
                 <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: 2 }}>
                   Preencha os dados, prazo, data de pagamento e nível de importância.
                 </p>
@@ -1275,7 +1319,9 @@ export default function ContasPagarPage() {
                 type="button"
                 onClick={() => setIsModalOpen(false)}
                 className="btn btn-ghost"
-                style={{ width: 32, height: 32, padding: 0 }}
+                style={{ minWidth: 44, minHeight: 44, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                title="Fechar janela"
+                aria-label="Fechar janela"
               >
                 <X size={18} />
               </button>
@@ -1491,6 +1537,9 @@ export default function ContasPagarPage() {
       {/* MODAL SCRIPT SQL SUPABASE */}
       {showSqlModal && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-sql-title"
           style={{
             position: "fixed",
             inset: 0,
@@ -1510,7 +1559,7 @@ export default function ContasPagarPage() {
             style={{
               width: "100%",
               maxWidth: 640,
-              maxHeight: "85vh",
+              maxHeight: "min(85vh, 85dvh)",
               overflowY: "auto",
               background: "var(--color-surface)",
               border: "1px solid var(--color-border-light)",
@@ -1522,9 +1571,9 @@ export default function ContasPagarPage() {
               boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--sp-3)" }}>
               <div>
-                <h2 className="h2">Sincronização com o Supabase</h2>
+                <h2 id="modal-sql-title" className="h2">Sincronização com o Supabase</h2>
                 <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
                   Execute este script no SQL Editor do seu Supabase para persistir suas contas na nuvem.
                 </p>
@@ -1533,7 +1582,9 @@ export default function ContasPagarPage() {
                 type="button"
                 onClick={() => setShowSqlModal(false)}
                 className="btn btn-ghost"
-                style={{ width: 32, height: 32, padding: 0 }}
+                style={{ minWidth: 44, minHeight: 44, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                title="Fechar janela"
+                aria-label="Fechar janela"
               >
                 <X size={18} />
               </button>

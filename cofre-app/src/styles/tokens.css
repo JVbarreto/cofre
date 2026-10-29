@@ -34,13 +34,13 @@
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
   --font-body:    var(--font-instrument), system-ui, sans-serif;
 
-  --text-xs:   12px;
-  --text-sm:   13px;
-  --text-base: 14px;
-  --text-md:   16px;
-  --text-lg:   20px;
-  --text-xl:   28px;
-  --text-2xl:  44px;
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.8125rem;  /* 13px */
+  --text-base: 0.875rem;   /* 14px */
+  --text-md:   1rem;       /* 16px */
+  --text-lg:   1.25rem;    /* 20px */
+  --text-xl:   1.75rem;    /* 28px */
+  --text-2xl:  2.75rem;    /* 44px */
 
   --weight-regular: 400;
   --weight-medium:  500;

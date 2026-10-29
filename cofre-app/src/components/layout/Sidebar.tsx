@@ -69,11 +69,11 @@ export function Sidebar() {
           <button
             onClick={handleLogout}
             className="btn btn-ghost"
-            style={{ height: 34, width: 34, padding: 0, borderRadius: "var(--radius-sm)" }}
+            style={{ minHeight: 44, minWidth: 44, padding: 0, borderRadius: "var(--radius-sm)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
             title="Sair da conta"
             aria-label="Sair da conta"
           >
-            <LogOut size={16} strokeWidth={1.8} />
+            <LogOut size={18} strokeWidth={1.8} />
           </button>
         </div>
       </header>

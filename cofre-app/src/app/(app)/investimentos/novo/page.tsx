@@ -53,7 +53,7 @@ export default function NovoInvestimentoPage() {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "var(--sp-6) var(--sp-4) calc(var(--sp-12) + 68px)", display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, overflowY: "auto", position: "relative", padding: "var(--sp-6) var(--sp-4) calc(var(--sp-12) + 68px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column" }}>
 
       {/* HEADER */}
       <div style={{ marginBottom: 24 }}>
