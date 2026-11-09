@@ -6,23 +6,20 @@ import { formatBRL } from "@/lib/utils/currency";
 import type { Category, CategoriaRow, ImportanciaConta, FormaPagamentoConta, StatusConta } from "@/types/database";
 import { mapCategoria } from "@/lib/data/mappers";
 import {
-  CalendarClock,
   Plus,
   Search,
-  CheckCircle2,
-  Circle,
-  AlertTriangle,
-  Clock,
-  Copy,
   Check,
+  Copy,
   Trash2,
   Edit3,
-  Calendar,
-  DollarSign,
-  StickyNote,
-  Barcode,
   ArrowUpRight,
   Database as DatabaseIcon,
+  AlertTriangle,
+  CircleAlert,
+  CircleCheck,
+  Timer,
+  FileText,
+  EllipsisVertical,
   X,
 } from "lucide-react";
 
@@ -88,6 +85,28 @@ const FORMA_PAGAMENTO_LABELS: Record<FormaPagamentoConta, { label: string; icon:
 
 const STORAGE_KEY_PREFIX = "cofre_contas_pagar_";
 
+type StatusFilter = "todas" | "atrasadas" | "avencer" | "pagas";
+
+// Diferença em dias entre duas datas ISO (YYYY-MM-DD), sem depender de fuso horário
+function dayDiff(aIso: string, bIso: string) {
+  const [ay, am, ad] = aIso.split("-").map(Number);
+  const [by, bm, bd] = bIso.split("-").map(Number);
+  return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86400000);
+}
+
+function localTodayIso() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const brlCompact = (n: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: n % 1 === 0 ? 0 : 2,
+  }).format(n);
+
 export default function ContasPagarPage() {
   const [contas, setContas] = useState<ContaPagarItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -99,9 +118,8 @@ export default function ContasPagarPage() {
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"todas" | "pendentes" | "atrasadas" | "pagas">("pendentes");
-  const [importanciaFilter, setImportanciaFilter] = useState<string>("todas");
-  const [sortBy, setSortBy] = useState<"prazo" | "importancia" | "valor" | "titulo">("prazo");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   // Modal formulário
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -124,7 +142,7 @@ export default function ContasPagarPage() {
     recorrente: false,
   });
 
-  const todayIso = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const todayIso = useMemo(() => localTodayIso(), []);
 
   // Carregamento inicial
   useEffect(() => {
@@ -237,6 +255,23 @@ export default function ContasPagarPage() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isModalOpen, showSqlModal]);
+
+  // Fecha o menu de ações da linha ao clicar fora dele
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("[data-row-menu]")) setMenuOpenId(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpenId(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpenId]);
 
   // Salvar no storage local se necessário
   function persistLocal(items: ContaPagarItem[]) {
@@ -518,22 +553,23 @@ export default function ContasPagarPage() {
     let totalPago = 0;
     let totalAtrasado = 0;
     let countAtrasadas = 0;
+    let countPagasMes = 0;
     let countProximos7Dias = 0;
     let totalProximos7Dias = 0;
 
-    const limit7Days = new Date();
-    limit7Days.setDate(limit7Days.getDate() + 7);
-    const limit7DaysIso = limit7Days.toISOString().split("T")[0];
-
     contas.forEach(c => {
       if (c.status === "pago") {
-        totalPago += c.valor;
+        // "Pagas no mês": considera a data de pagamento (ou o prazo, se não informada)
+        if ((c.data_pagamento || c.prazo).slice(0, 7) === todayIso.slice(0, 7)) {
+          totalPago += c.valor;
+          countPagasMes++;
+        }
       } else {
         totalPendente += c.valor;
         if (c.prazo < todayIso) {
           totalAtrasado += c.valor;
           countAtrasadas++;
-        } else if (c.prazo <= limit7DaysIso) {
+        } else if (dayDiff(c.prazo, todayIso) <= 7) {
           totalProximos7Dias += c.valor;
           countProximos7Dias++;
         }
@@ -545,54 +581,51 @@ export default function ContasPagarPage() {
       totalPago,
       totalAtrasado,
       countAtrasadas,
+      countPagasMes,
       countProximos7Dias,
       totalProximos7Dias,
       countTotal: contas.length,
     };
   }, [contas, todayIso]);
 
-  // Lista filtrada e ordenada
+  // Contagem por aba
+  const tabCounts = useMemo(() => {
+    const counts = { todas: contas.length, atrasadas: 0, avencer: 0, pagas: 0 };
+    contas.forEach(c => {
+      if (c.status === "pago") counts.pagas++;
+      else if (c.prazo < todayIso) counts.atrasadas++;
+      else counts.avencer++;
+    });
+    return counts;
+  }, [contas, todayIso]);
+
+  // Lista filtrada e ordenada: pendentes primeiro (prazo mais próximo no topo), pagas por último
   const filteredContas = useMemo(() => {
     return contas
       .filter(item => {
-        // Busca textual
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
           const matchTitle = item.titulo.toLowerCase().includes(term);
           const matchDesc = item.descricao?.toLowerCase().includes(term) ?? false;
           const matchCode = item.codigo_barras?.toLowerCase().includes(term) ?? false;
-          if (!matchTitle && !matchDesc && !matchCode) return false;
+          const matchCat = categories.find(cat => cat.id === item.categoria_id)?.name.toLowerCase().includes(term) ?? false;
+          if (!matchTitle && !matchDesc && !matchCode && !matchCat) return false;
         }
 
-        // Filtro de Status
-        const isAtrasada = item.status === "pendente" && item.prazo < todayIso;
-        if (statusFilter === "pendentes" && item.status !== "pendente") return false;
-        if (statusFilter === "atrasadas" && !isAtrasada) return false;
-        if (statusFilter === "pagas" && item.status !== "pago") return false;
-
-        // Filtro de Importância
-        if (importanciaFilter !== "todas" && item.importancia !== importanciaFilter) return false;
-
+        const isPago = item.status === "pago";
+        const isAtrasada = !isPago && item.prazo < todayIso;
+        if (statusFilter === "atrasadas") return isAtrasada;
+        if (statusFilter === "avencer") return !isPago && !isAtrasada;
+        if (statusFilter === "pagas") return isPago;
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "prazo") {
-          return a.prazo.localeCompare(b.prazo);
-        }
-        if (sortBy === "importancia") {
-          const pesos: Record<ImportanciaConta, number> = { urgente: 4, alta: 3, media: 2, baixa: 1 };
-          return pesos[b.importancia] - pesos[a.importancia];
-        }
-        if (sortBy === "valor") {
-          return b.valor - a.valor;
-        }
-        if (sortBy === "titulo") {
-          return a.titulo.localeCompare(b.titulo);
-        }
-        return 0;
+        const aPago = a.status === "pago" ? 1 : 0;
+        const bPago = b.status === "pago" ? 1 : 0;
+        if (aPago !== bPago) return aPago - bPago;
+        return aPago ? b.prazo.localeCompare(a.prazo) : a.prazo.localeCompare(b.prazo);
       });
-  }, [contas, searchTerm, statusFilter, importanciaFilter, sortBy, todayIso]);
-
+  }, [contas, categories, searchTerm, statusFilter, todayIso]);
   // Auxiliar para formatação de data sem UTC offset
   const formatIsoDate = (iso: string | null) => {
     if (!iso) return "-";
@@ -601,53 +634,6 @@ export default function ContasPagarPage() {
       return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
     return iso;
-  };
-
-  // Cálculo de dias restantes ou de atraso
-  const getPrazoBadge = (prazo: string, status: StatusConta) => {
-    if (status === "pago") {
-      return {
-        label: `Venceu em ${formatIsoDate(prazo)}`,
-        badgeClass: "badge",
-        isAlert: false,
-      };
-    }
-
-    const [ano, mes, dia] = prazo.split("-").map(Number);
-    const prazoDate = new Date(ano, mes - 1, dia);
-    const [tAno, tMes, tDia] = todayIso.split("-").map(Number);
-    const todayDate = new Date(tAno, tMes - 1, tDia);
-
-    const diffTime = prazoDate.getTime() - todayDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      const diasAtraso = Math.abs(diffDays);
-      return {
-        label: `Atrasado há ${diasAtraso} ${diasAtraso === 1 ? "dia" : "dias"} (${formatIsoDate(prazo)})`,
-        badgeClass: "badge-danger",
-        isAlert: true,
-      };
-    }
-    if (diffDays === 0) {
-      return {
-        label: `Vence hoje! (${formatIsoDate(prazo)})`,
-        badgeClass: "badge-warning",
-        isAlert: true,
-      };
-    }
-    if (diffDays === 1) {
-      return {
-        label: `Vence amanhã (${formatIsoDate(prazo)})`,
-        badgeClass: "badge-warning",
-        isAlert: false,
-      };
-    }
-    return {
-      label: `Vence em ${diffDays} dias (${formatIsoDate(prazo)})`,
-      badgeClass: "badge",
-      isAlert: false,
-    };
   };
 
   return (
@@ -678,298 +664,160 @@ export default function ContasPagarPage() {
       )}
 
       {/* HEADER DA PÁGINA */}
-      <header className="page-head">
+      <header className="page-head" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <div className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span>Planejamento Financeiro</span>
-            {usingLocalStorage ? (
-              <span
-                style={{
-                  fontSize: 10,
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  background: "rgba(251, 191, 36, 0.15)",
-                  color: "var(--color-warning)",
-                  border: "1px solid rgba(251, 191, 36, 0.3)",
-                }}
-              >
-                Modo Local (Offline/LocalStorage)
-              </span>
-            ) : (
-              <span
-                style={{
-                  fontSize: 11,
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  background: "var(--color-success-bg)",
-                  color: "var(--color-success)",
-                  border: "1px solid rgba(52, 211, 153, 0.25)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-success)" }} />
-                Supabase Sincronizado
-              </span>
-            )}
-          </div>
           <h1 className="h1">Contas a Pagar</h1>
-          <p className="muted" style={{ marginTop: 4, fontSize: "var(--text-sm)" }}>
-            Controle de anotações, datas de pagamento, prazos de vencimento e prioridades.
-          </p>
+          <p className="page-sub only-d">Controle de compromissos financeiros e datas de vencimento</p>
+          {usingLocalStorage && (
+            <span className="badge badge-warning" style={{ display: "inline-block", marginTop: "var(--sp-2)" }}>
+              Modo local · salvo neste navegador
+            </span>
+          )}
         </div>
 
-        <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
+        <div className="head-actions">
           {usingLocalStorage && (
             <button
               onClick={() => setShowSqlModal(true)}
-              className="btn btn-ghost"
+              className="btn btn-ghost only-d"
               title="Ver Script SQL da tabela no Supabase"
-              style={{ fontSize: "var(--text-sm)", minHeight: 44, display: "inline-flex", alignItems: "center" }}
             >
-              <DatabaseIcon size={15} />
+              <DatabaseIcon size={15} aria-hidden="true" />
               SQL Supabase
             </button>
           )}
-
-          <button onClick={handleOpenCreate} className="btn btn-primary" style={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}>
-            <Plus size={16} strokeWidth={2} />
-            Nova Conta
+          <button onClick={handleOpenCreate} className="btn btn-primary" style={{ borderRadius: "var(--radius-md)", width: "auto" }}>
+            <Plus size={16} strokeWidth={2} aria-hidden="true" />
+            <span className="only-d">Nova Conta</span>
+            <span className="only-m">Conta</span>
           </button>
         </div>
       </header>
 
-      {/* CARDS DE RESUMO / MÉTRICAS */}
-      <div className="metrics-grid">
-        {/* Total a Pagar */}
-        <div className="metrics-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="eyebrow">Total a Pagar</span>
-            <DollarSign size={16} className="muted" />
-          </div>
-          <div
-            className="num metrics-num"
-            style={{
-              textAlign: "left",
-            }}
-          >
-            {formatBRL(metrics.totalPendente)}
-          </div>
-          <div className="muted" style={{ fontSize: "var(--text-xs)" }}>
-            {contas.filter(c => c.status === "pendente").length} conta(s) pendente(s)
-          </div>
-        </div>
-
-        {/* Contas Atrasadas */}
-        <div
-          className="metrics-card"
-          style={{
-            background: metrics.countAtrasadas > 0 ? "rgba(248, 113, 113, 0.08)" : undefined,
-            borderColor: metrics.countAtrasadas > 0 ? "rgba(248, 113, 113, 0.35)" : undefined,
-          }}
+      {/* CARDS DE RESUMO */}
+      <div className="summary-row contas-summary">
+        <section
+          className="summary-card"
+          style={{ gap: 10, padding: "var(--sp-4)", cursor: "pointer" }}
+          aria-label="Contas vencidas"
+          onClick={() => setStatusFilter(s => (s === "atrasadas" ? "todas" : "atrasadas"))}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="eyebrow" style={{ color: metrics.countAtrasadas > 0 ? "var(--color-danger)" : undefined }}>
-              Atrasadas
+          <div className="metric-top">
+            <span className="metric-label">
+              <span className="only-d">Contas Vencidas</span>
+              <span className="only-m">Vencidas</span>
             </span>
-            <AlertTriangle size={16} color={metrics.countAtrasadas > 0 ? "var(--color-danger)" : "var(--color-text-3)"} />
+            <CircleAlert size={18} color="var(--color-danger)" className="only-d" aria-hidden="true" />
           </div>
-          <div
-            className="num metrics-num"
-            style={{
-              textAlign: "left",
-              color: metrics.countAtrasadas > 0 ? "var(--color-danger)" : "var(--color-text)",
-            }}
-          >
-            {formatBRL(metrics.totalAtrasado)}
+          <div className="metric-bottom">
+            <span className="num metric-value" style={{ color: "var(--color-danger)" }}>
+              <span className="only-d">{formatBRL(metrics.totalAtrasado)}</span>
+              <span className="only-m">{brlCompact(metrics.totalAtrasado)}</span>
+            </span>
+            <span className="count-badge only-d" style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}>
+              {metrics.countAtrasadas} {metrics.countAtrasadas === 1 ? "conta" : "contas"}
+            </span>
           </div>
-          <div style={{ fontSize: "var(--text-xs)", color: metrics.countAtrasadas > 0 ? "var(--color-danger)" : "var(--color-text-3)" }}>
-            {metrics.countAtrasadas} conta(s) fora do prazo
-          </div>
-        </div>
+        </section>
 
-        {/* Vencem em breve (7 dias) */}
-        <div
-          className="metrics-card"
-          style={{
-            background: metrics.countProximos7Dias > 0 ? "rgba(251, 191, 36, 0.08)" : undefined,
-            borderColor: metrics.countProximos7Dias > 0 ? "rgba(251, 191, 36, 0.35)" : undefined,
-          }}
+        <section
+          className="summary-card"
+          style={{ gap: 10, padding: "var(--sp-4)", cursor: "pointer" }}
+          aria-label="A vencer nos próximos 7 dias"
+          onClick={() => setStatusFilter(s => (s === "avencer" ? "todas" : "avencer"))}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="eyebrow" style={{ color: metrics.countProximos7Dias > 0 ? "var(--color-warning)" : undefined }}>
-              Próximos 7 Dias
+          <div className="metric-top">
+            <span className="metric-label">
+              <span className="only-d">A Vencer nos Próximos 7 Dias</span>
+              <span className="only-m">A Vencer</span>
             </span>
-            <Clock size={16} color={metrics.countProximos7Dias > 0 ? "var(--color-warning)" : "var(--color-text-3)"} />
+            <Timer size={18} color="var(--color-warning)" className="only-d" aria-hidden="true" />
           </div>
-          <div
-            className="num metrics-num"
-            style={{
-              textAlign: "left",
-              color: metrics.countProximos7Dias > 0 ? "var(--color-warning)" : "var(--color-text)",
-            }}
-          >
-            {formatBRL(metrics.totalProximos7Dias)}
+          <div className="metric-bottom">
+            <span className="num metric-value" style={{ color: "var(--color-warning)" }}>
+              <span className="only-d">{formatBRL(metrics.totalProximos7Dias)}</span>
+              <span className="only-m">{brlCompact(metrics.totalProximos7Dias)}</span>
+            </span>
+            <span className="count-badge only-d" style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}>
+              {metrics.countProximos7Dias} {metrics.countProximos7Dias === 1 ? "conta" : "contas"}
+            </span>
           </div>
-          <div style={{ fontSize: "var(--text-xs)", color: metrics.countProximos7Dias > 0 ? "var(--color-warning)" : "var(--color-text-3)" }}>
-            {metrics.countProximos7Dias} conta(s) para vencer
-          </div>
-        </div>
+        </section>
 
-        {/* Já Pagas */}
-        <div className="metrics-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="eyebrow">Total Pago</span>
-            <CheckCircle2 size={16} color="var(--color-success)" />
+        <section
+          className="summary-card"
+          style={{ gap: 10, padding: "var(--sp-4)", cursor: "pointer" }}
+          aria-label="Pagas no mês"
+          onClick={() => setStatusFilter(s => (s === "pagas" ? "todas" : "pagas"))}
+        >
+          <div className="metric-top">
+            <span className="metric-label">
+              <span className="only-d">Pagas no Mês</span>
+              <span className="only-m">Pagas</span>
+            </span>
+            <CircleCheck size={18} color="var(--color-success)" className="only-d" aria-hidden="true" />
           </div>
-          <div
-            className="num metrics-num"
-            style={{
-              textAlign: "left",
-              color: "var(--color-success)",
-            }}
-          >
-            {formatBRL(metrics.totalPago)}
+          <div className="metric-bottom">
+            <span className="num metric-value" style={{ color: "var(--color-success)" }}>
+              <span className="only-d">{formatBRL(metrics.totalPago)}</span>
+              <span className="only-m">{brlCompact(metrics.totalPago)}</span>
+            </span>
+            <span className="count-badge only-d" style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}>
+              {metrics.countPagasMes} {metrics.countPagasMes === 1 ? "conta" : "contas"}
+            </span>
           </div>
-          <div className="muted" style={{ fontSize: "var(--text-xs)" }}>
-            {contas.filter(c => c.status === "pago").length} conta(s) liquidada(s)
-          </div>
-        </div>
+        </section>
       </div>
 
-      {/* BARRA DE FILTROS & PESQUISA */}
-      <div
-        style={{
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-sm)",
-          padding: "var(--sp-3) var(--sp-4)",
-          display: "flex",
-          gap: "var(--sp-3)",
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Campo de Busca */}
-        <div style={{ position: "relative", flex: "1 1 200px", minWidth: 180 }}>
-          <Search
-            size={16}
-            style={{
-              position: "absolute",
-              left: 12,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "var(--color-text-3)",
-            }}
-          />
-          <input
-            type="text"
-            placeholder="Buscar por conta, anotação ou código..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="input"
-            aria-label="Buscar por conta, anotação ou código"
-            style={{
-              paddingLeft: 38,
-              paddingRight: searchTerm ? 38 : 12,
-              height: 44,
-              fontSize: "var(--text-sm)",
-            }}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              aria-label="Limpar busca"
-              title="Limpar busca"
-              style={{
-                position: "absolute",
-                right: 4,
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--color-text-3)",
-                minWidth: 36,
-                minHeight: 36,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-
-        {/* Segmented Status */}
-        <div className="segmented" style={{ minHeight: 44, padding: 3, overflowX: "auto", maxWidth: "100%", scrollbarWidth: "none" }}>
+      {/* ABAS DE STATUS E BUSCA */}
+      <div className="filter-row">
+        <div className="tabs" role="group" aria-label="Filtrar por status">
           {(
             [
-              { id: "pendentes", label: "Pendentes" },
-              { id: "atrasadas", label: "Atrasadas" },
-              { id: "pagas", label: "Pagas" },
               { id: "todas", label: "Todas" },
+              { id: "atrasadas", label: "Vencidas" },
+              { id: "avencer", label: "A Vencer" },
+              { id: "pagas", label: "Pagas" },
             ] as const
           ).map(tab => (
             <button
               key={tab.id}
               type="button"
+              className="tab"
               aria-pressed={statusFilter === tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              style={{ fontSize: "var(--text-xs)", padding: "0 12px", minHeight: 36, whiteSpace: "nowrap" }}
             >
-              {tab.label}
+              {tab.label} ({tabCounts[tab.id]})
             </button>
           ))}
         </div>
 
-        {/* Filtro de Importância */}
-        <select
-          id="filtro-prioridade"
-          aria-label="Filtrar por prioridade"
-          value={importanciaFilter}
-          onChange={e => setImportanciaFilter(e.target.value)}
-          className="input"
-          style={{ flex: "1 1 140px", minWidth: 130, height: 44, fontSize: "var(--text-sm)" }}
-        >
-          <option value="todas">Todas prioridades</option>
-          <option value="urgente">🚨 Urgente</option>
-          <option value="alta">⚠️ Alta</option>
-          <option value="media">🔹 Média</option>
-          <option value="baixa">⚪ Baixa</option>
-        </select>
-
-        {/* Ordenação */}
-        <select
-          id="filtro-ordenacao"
-          aria-label="Ordenar contas a pagar"
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value as any)}
-          className="input"
-          style={{ flex: "1 1 140px", minWidth: 130, height: 44, fontSize: "var(--text-sm)" }}
-        >
-          <option value="prazo">Ordenar: Prazo</option>
-          <option value="importancia">Ordenar: Prioridade</option>
-          <option value="valor">Ordenar: Maior Valor</option>
-          <option value="titulo">Ordenar: Nome A-Z</option>
-        </select>
+        <div className="search-box">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="text"
+            placeholder="Buscar conta ou fornecedor..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="input"
+            aria-label="Buscar conta ou fornecedor"
+          />
+        </div>
       </div>
 
-      {/* LISTA DE CONTAS A PAGAR */}
-      <section className="section" aria-label="Lista de contas a pagar">
+      {/* TABELA DE CONTAS A PAGAR */}
+      <section aria-label="Lista de contas a pagar">
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-            {[1, 2, 3].map(i => (
-              <div key={i} className="skeleton" style={{ height: 84 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="skeleton" style={{ height: 56 }} />
             ))}
           </div>
         ) : filteredContas.length === 0 ? (
           <div className="empty">
             <div className="empty-title">Nenhuma conta encontrada</div>
             <p>
-              {searchTerm || statusFilter !== "todas" || importanciaFilter !== "todas"
+              {searchTerm || statusFilter !== "todas"
                 ? "Nenhuma conta corresponde aos filtros selecionados. Tente limpar a busca ou mudar o status."
                 : "Você ainda não possui anotações de contas para pagar cadastradas."}
             </p>
@@ -978,291 +826,128 @@ export default function ContasPagarPage() {
             </button>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+          <div className="bills-table bills-cols">
+            <div className="table-head">
+              <div>Conta &amp; Categoria</div>
+              <div>Vencimento</div>
+              <div>Status</div>
+              <div>Valor (R$)</div>
+              <div style={{ textAlign: "right" }}>Ações</div>
+            </div>
+
             {filteredContas.map(conta => {
-              const prazoInfo = getPrazoBadge(conta.prazo, conta.status);
-              const importanciaInfo = IMPORTANCIA_CONFIG[conta.importancia];
-              const formaInfo = conta.forma_pagamento ? FORMA_PAGAMENTO_LABELS[conta.forma_pagamento] : null;
-              const categoriaObj = categories.find(c => c.id === conta.categoria_id);
               const isPago = conta.status === "pago";
+              const diff = dayDiff(conta.prazo, todayIso);
+              const isAtrasada = !isPago && diff < 0;
+
+              const statusInfo = isPago
+                ? { label: "Paga", color: "var(--color-success)", bg: "var(--color-success-bg)" }
+                : isAtrasada
+                  ? { label: "Vencida", color: "var(--color-danger)", bg: "var(--color-danger-bg)" }
+                  : { label: "A Vencer", color: "var(--color-warning)", bg: "var(--color-warning-bg)" };
+
+              let relative = "";
+              if (!isPago) {
+                if (diff === -1) relative = " (Ontem)";
+                else if (diff < -1) relative = " (Atrasada)";
+                else if (diff === 0) relative = " (Hoje)";
+                else if (diff === 1) relative = " (Amanhã)";
+                else if (diff <= 7) relative = ` (Em ${diff} dias)`;
+              }
+
+              const categoriaObj = categories.find(c => c.id === conta.categoria_id);
+              const formaInfo = conta.forma_pagamento ? FORMA_PAGAMENTO_LABELS[conta.forma_pagamento] : null;
+              const importanciaInfo = IMPORTANCIA_CONFIG[conta.importancia];
+              const showImportancia = !isPago && (conta.importancia === "urgente" || conta.importancia === "alta");
 
               return (
-                <div
-                  key={conta.id}
-                  style={{
-                    background: isPago ? "var(--color-surface)" : "var(--color-surface)",
-                    border: `1px solid ${prazoInfo.isAlert && !isPago ? prazoInfo.badgeClass === "badge-danger" ? "rgba(248, 113, 113, 0.45)" : "rgba(251, 191, 36, 0.45)" : "var(--color-border)"}`,
-                    borderLeft: `4px solid ${importanciaInfo.color}`,
-                    borderRadius: "var(--radius-sm)",
-                    padding: "var(--sp-4) var(--sp-5)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--sp-3)",
-                    transition: "border-color var(--dur) var(--ease), background var(--dur) var(--ease)",
-                    opacity: isPago ? 0.78 : 1,
-                  }}
-                >
-                  {/* Linha Principal */}
-                  <div className="conta-item-main">
-                    {/* Checkbox Status + Título + Badges */}
-                    <div className="conta-info-col">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(conta)}
-                        title={isPago ? "Marcar como pendente" : "Marcar como paga"}
-                        aria-label={isPago ? "Marcar como pendente" : "Marcar como paga"}
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: 4,
-                          minWidth: 44,
-                          minHeight: 44,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: isPago ? "var(--color-success)" : "var(--color-text-3)",
-                          transition: "color var(--dur) var(--ease), transform 0.1s ease",
-                        }}
-                      >
-                        {isPago ? (
-                          <CheckCircle2 size={24} color="var(--color-success)" />
-                        ) : (
-                          <Circle size={24} />
-                        )}
-                      </button>
-
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span
-                            style={{
-                              fontSize: "var(--text-md)",
-                              fontWeight: "var(--weight-strong)",
-                              color: isPago ? "var(--color-text-2)" : "var(--color-text)",
-                              textDecoration: isPago ? "line-through" : "none",
-                              overflowWrap: "break-word",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {conta.titulo}
-                          </span>
-
-                          {/* Badge de Importância */}
-                          <span
-                            className={`badge ${importanciaInfo.badgeClass}`}
-                            style={{
-                              border: `1px solid ${importanciaInfo.border}`,
-                              color: importanciaInfo.color,
-                            }}
-                          >
-                            {importanciaInfo.icon} {importanciaInfo.label}
-                          </span>
-
-                          {/* Recorrência */}
-                          {conta.recorrente && (
-                            <span className="badge" title="Repete todo mês">
-                              🔄 Recorrente
-                            </span>
-                          )}
-
-                          {/* Categoria */}
-                          {categoriaObj && (
-                            <span className="badge" style={{ color: "var(--color-text-2)" }}>
-                              {categoriaObj.icon || "🏷️"} {categoriaObj.name}
-                            </span>
-                          )}
-
-                          {/* Forma de Pagamento */}
-                          {formaInfo && (
-                            <span className="badge" style={{ color: "var(--color-text-3)" }}>
-                              {formaInfo.icon} {formaInfo.label}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Linha de Datas: Prazo e Data de Pagamento */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            flexWrap: "wrap",
-                            fontSize: "var(--text-xs)",
-                            color: "var(--color-text-2)",
-                          }}
-                        >
-                          <span
-                            className={`badge ${prazoInfo.badgeClass}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-                          >
-                            <Calendar size={12} />
-                            Prazo: {prazoInfo.label}
-                          </span>
-
-                          {/* Data de Pagamento */}
-                          {isPago ? (
-                            <span
-                              style={{
-                                color: "var(--color-success)",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                                fontWeight: "var(--weight-medium)",
-                              }}
-                            >
-                              <CheckCircle2 size={12} />
-                              Pago em {formatIsoDate(conta.data_pagamento)}
-                            </span>
-                          ) : conta.data_pagamento ? (
-                            <span style={{ color: "var(--color-primary)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                              <Clock size={12} />
-                              Agendado p/ {formatIsoDate(conta.data_pagamento)}
-                            </span>
-                          ) : null}
-                        </div>
+                <div key={conta.id} className="table-row">
+                  <div className="bill-cell-main">
+                    <span className="bill-icon" aria-hidden="true">
+                      <FileText size={14} color={statusInfo.color} />
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="bill-title" style={{ color: isPago ? "var(--color-text-2)" : undefined }} title={conta.descricao ?? undefined}>
+                        {conta.titulo}
                       </div>
-                    </div>
-
-                    {/* Valor e Ações */}
-                    <div className="conta-valor-acoes">
-                      <div style={{ textAlign: "right" }}>
-                        <div
-                          className="num"
-                          style={{
-                            fontSize: "var(--text-lg)",
-                            fontWeight: "var(--weight-strong)",
-                            color: isPago
-                              ? "var(--color-text-2)"
-                              : prazoInfo.isAlert && prazoInfo.badgeClass === "badge-danger"
-                              ? "var(--color-danger)"
-                              : "var(--color-text)",
-                            textDecoration: isPago ? "line-through" : "none",
-                          }}
-                        >
-                          {formatBRL(conta.valor)}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--color-text-3)" }}>
-                          {isPago ? "Liquidado" : "A pagar"}
-                        </div>
-                      </div>
-
-                      {/* Botões de Ação */}
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        {/* Se pago, opção de lançar no caixa com 1 clique */}
-                        {isPago && (
-                          <button
-                            type="button"
-                            onClick={() => handleLancarNoCaixa(conta)}
-                            className="btn btn-ghost"
-                            style={{ minHeight: 38, padding: "0 12px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}
-                            title="Lançar como despesa no livro-caixa do Cofre"
-                            aria-label="Lançar no caixa"
-                          >
-                            <ArrowUpRight size={14} /> Lançar no Caixa
-                          </button>
+                      <div className="bill-sub">
+                        {categoriaObj?.name ?? formaInfo?.label ?? "Sem categoria"}
+                        {conta.recorrente && " · Recorrente"}
+                        {showImportancia && (
+                          <span style={{ color: importanciaInfo.color, fontWeight: "var(--weight-strong)" }}> · {importanciaInfo.label}</span>
                         )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(conta)}
-                          className="btn btn-ghost"
-                          style={{ minWidth: 44, minHeight: 44, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                          title="Editar anotação"
-                          aria-label="Editar anotação"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(conta.id)}
-                          className="btn btn-ghost"
-                          style={{ minWidth: 44, minHeight: 44, padding: 0, color: "var(--color-danger)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                          title="Excluir anotação"
-                          aria-label="Excluir anotação"
-                        >
-                          <Trash2 size={16} />
-                        </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Detalhes extras: Anotação / Observações */}
-                  {conta.descricao && (
-                    <div
-                      style={{
-                        background: "var(--color-surface-2)",
-                        border: "1px dashed var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        padding: "8px 12px",
-                        fontSize: "var(--text-xs)",
-                        color: "var(--color-text-2)",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 8,
-                      }}
-                    >
-                      <StickyNote size={14} style={{ flexShrink: 0, marginTop: 2, color: "var(--color-warning)" }} />
-                      <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{conta.descricao}</div>
-                    </div>
-                  )}
+                  <div style={{ fontSize: "var(--text-xs)", color: isAtrasada ? "var(--color-danger)" : "var(--color-text-2)", whiteSpace: "nowrap" }}>
+                    {formatIsoDate(conta.prazo)}{relative}
+                  </div>
 
-                  {/* Código de barras / Linha digitável ou Chave PIX */}
-                  {conta.codigo_barras && (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        background: "var(--color-surface-2)",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-sm)",
-                        padding: "6px 12px",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          minWidth: 0,
-                          fontSize: "var(--text-xs)",
-                          fontFamily: "monospace",
-                          color: "var(--color-text-2)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <Barcode size={14} color="var(--color-text-3)" />
-                        <span style={{ userSelect: "all" }}>{conta.codigo_barras}</span>
-                      </div>
+                  <div>
+                    <span className="count-badge" style={{ background: statusInfo.bg, color: statusInfo.color, display: "inline-block" }}>
+                      {statusInfo.label}
+                    </span>
+                  </div>
 
+                  <div className="num" style={{ textAlign: "left", fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: isPago ? "var(--color-text-3)" : "var(--color-text)" }}>
+                    {formatBRL(conta.valor)}
+                  </div>
+
+                  <div className="bill-actions" data-row-menu>
+                    {isPago ? (
                       <button
                         type="button"
-                        onClick={() => handleCopy(conta.codigo_barras!, conta.id)}
-                        className="btn btn-ghost"
-                        style={{
-                          height: 28,
-                          padding: "0 10px",
-                          fontSize: 11,
-                          flexShrink: 0,
-                          color: copiedId === conta.id ? "var(--color-success)" : undefined,
-                        }}
+                        className="btn-paid"
+                        onClick={() => handleToggleStatus(conta)}
+                        title="Marcar como pendente"
+                        aria-label={`${conta.titulo}: paga. Marcar como pendente`}
                       >
-                        {copiedId === conta.id ? (
-                          <>
-                            <Check size={12} color="var(--color-success)" /> Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={12} /> Copiar
-                          </>
-                        )}
+                        Paga <Check size={12} aria-hidden="true" />
                       </button>
-                    </div>
-                  )}
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-pay"
+                        onClick={() => handleToggleStatus(conta)}
+                        aria-label={`Marcar ${conta.titulo} como paga`}
+                      >
+                        <Check size={12} aria-hidden="true" /> Pagar
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => setMenuOpenId(menuOpenId === conta.id ? null : conta.id)}
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpenId === conta.id}
+                      aria-label={`Mais ações para ${conta.titulo}`}
+                    >
+                      <EllipsisVertical size={16} aria-hidden="true" />
+                    </button>
+
+                    {menuOpenId === conta.id && (
+                      <div className="row-menu" role="menu">
+                        <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleOpenEdit(conta); }}>
+                          <Edit3 size={14} aria-hidden="true" /> Editar
+                        </button>
+                        {conta.codigo_barras && (
+                          <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleCopy(conta.codigo_barras!, conta.id); }}>
+                            {copiedId === conta.id ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copiedId === conta.id ? "Copiado!" : "Copiar código"}
+                          </button>
+                        )}
+                        {isPago && (
+                          <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleLancarNoCaixa(conta); }}>
+                            <ArrowUpRight size={14} aria-hidden="true" /> Lançar no caixa
+                          </button>
+                        )}
+                        <button type="button" role="menuitem" className="danger" onClick={() => { setMenuOpenId(null); handleDelete(conta.id); }}>
+                          <Trash2 size={14} aria-hidden="true" /> Excluir
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
