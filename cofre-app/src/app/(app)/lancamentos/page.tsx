@@ -4,7 +4,8 @@ import { mapTransacaoComCategoria } from "@/lib/data/mappers";
 import { formatBRL } from "@/lib/utils/currency";
 import { formatMonth, getCurrentMonthRange } from "@/lib/utils/dates";
 import Link from "next/link";
-import { Plus, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Plus, ArrowDownLeft, ArrowUpRight, Pencil } from "lucide-react";
+import DeleteTransactionButton from "@/components/lancamentos/DeleteTransactionButton";
 
 // "2026-10-05" -> "05/10/2026", sem passar por Date (evita deslocar o dia por fuso horário)
 const fullDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -87,8 +88,14 @@ export default async function LancamentosPage() {
                       </div>
                     </div>
                   </div>
-                  <div className={`num entry-val ${isIn ? "amount-in" : "amount-out"}`}>
-                    {isIn ? "+" : "−"} {formatBRL(t.amount)}
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+                    <div className={`num entry-val ${isIn ? "amount-in" : "amount-out"}`}>
+                      {isIn ? "+" : "−"} {formatBRL(t.amount)}
+                    </div>
+                    <Link href={`/lancamentos/${t.id}/editar`} className="icon-btn" aria-label={`Editar ${t.description}`} title="Editar">
+                      <Pencil size={16} aria-hidden="true" />
+                    </Link>
+                    <DeleteTransactionButton id={t.id} description={t.description} />
                   </div>
                 </div>
               );

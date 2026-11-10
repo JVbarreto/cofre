@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import type { Database } from "@/types/database";
 import { TIPO_PARA_DB } from "@/lib/data/mappers";
 
@@ -24,6 +25,14 @@ export type ActionResult = {
 
 // ─── Validação ────────────────────────────────────────────────────────────────
 
+// Converte valor no formato brasileiro ("1.234,56") para número. Retorna NaN se inválido.
+// Aceita apenas dígitos, pontos de milhar bem posicionados e vírgula decimal (até 2 casas).
+function parseAmount(raw: string): number {
+  const value = raw.trim();
+  if (!/^(\d{1,3}(\.\d{3})+|\d+)(,\d{1,2})?$/.test(value)) return NaN;
+  return Number(value.replace(/\./g, "").replace(",", "."));
+}
+
 function validateTransaction(data: TransactionFormData): Record<string, string> {
   const errors: Record<string, string> = {};
 
@@ -41,9 +50,9 @@ function validateTransaction(data: TransactionFormData): Record<string, string> 
   }
 
   // Valor
-  const amount = parseFloat(data.amount.replace(",", "."));
+  const amount = parseAmount(data.amount);
   if (isNaN(amount) || amount <= 0) {
-    errors.amount = "Valor deve ser um número positivo.";
+    errors.amount = "Valor inválido. Use o formato 1.234,56.";
   } else if (amount > 9_999_999_999.99) {
     errors.amount = "Valor excede o limite permitido.";
   }
@@ -86,7 +95,7 @@ export async function createTransaction(data: TransactionFormData): Promise<Acti
     redirect("/login");
   }
 
-  const amount = parseFloat(data.amount.replace(",", "."));
+  const amount = parseAmount(data.amount);
 
   // 3. Inserção segura no banco com user_id do servidor
   type TransacaoInsert = Database["public"]["Tables"]["transacoes"]["Insert"];
@@ -111,5 +120,80 @@ export async function createTransaction(data: TransactionFormData): Promise<Acti
     };
   }
 
+  return { success: true };
+}
+
+// ─── Atualização e exclusão ───────────────────────────────────────────────────
+
+function revalidateTransactionPages() {
+  revalidatePath("/lancamentos");
+  revalidatePath("/dashboard");
+  revalidatePath("/relatorios");
+}
+
+export async function updateTransaction(id: string, data: TransactionFormData): Promise<ActionResult> {
+  const errors = validateTransaction(data);
+  if (Object.keys(errors).length > 0) {
+    return { success: false, errors };
+  }
+
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  type TransacaoUpdate = Database["public"]["Tables"]["transacoes"]["Update"];
+  const payload: TransacaoUpdate = {
+    descricao: data.description.trim(),
+    valor: parseAmount(data.amount),
+    tipo: TIPO_PARA_DB[data.type as "income" | "expense"],
+    categoria_id: data.category_id || null,
+    data: data.date,
+    recorrente: data.is_recurring,
+  };
+
+  const { data: updated, error: dbError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .from("transacoes")
+    .update(payload)
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .select("id");
+
+  if (dbError || !updated || updated.length === 0) {
+    return {
+      success: false,
+      message: "Não foi possível atualizar o lançamento. Tente novamente.",
+    };
+  }
+
+  revalidateTransactionPages();
+  return { success: true };
+}
+
+export async function deleteTransaction(id: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  const { data: deleted, error: dbError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .from("transacoes")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .select("id");
+
+  if (dbError || !deleted || deleted.length === 0) {
+    return {
+      success: false,
+      message: "Não foi possível excluir o lançamento. Tente novamente.",
+    };
+  }
+
+  revalidateTransactionPages();
   return { success: true };
 }
