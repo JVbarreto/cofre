@@ -20,7 +20,7 @@ export type InvestimentoRow = {
 };
 
 export type ImportanciaConta = "baixa" | "media" | "alta" | "urgente";
-export type StatusConta = "pendente" | "pago";
+export type StatusConta = "pendente" | "parcial" | "pago";
 export type FormaPagamentoConta = "pix" | "boleto" | "cartao" | "debito_automatico" | "dinheiro" | "outro";
 
 export type ContaPagarRow = {
@@ -29,6 +29,7 @@ export type ContaPagarRow = {
   titulo: string;
   descricao: string | null;
   valor: number;
+  valor_pago: number;
   prazo: string;
   data_pagamento: string | null;
   importancia: ImportanciaConta;
@@ -37,6 +38,15 @@ export type ContaPagarRow = {
   codigo_barras: string | null;
   forma_pagamento: FormaPagamentoConta | null;
   recorrente: boolean;
+  created_at: string;
+};
+
+export type PagamentoContaRow = {
+  id: string;
+  conta_id: string;
+  user_id: string;
+  valor: number;
+  pago_em: string;
   created_at: string;
 };
 
@@ -66,6 +76,7 @@ export interface Database {
           titulo: string;
           descricao?: string | null;
           valor?: number;
+          valor_pago?: number;
           prazo: string;
           data_pagamento?: string | null;
           importancia?: ImportanciaConta;
@@ -82,6 +93,7 @@ export interface Database {
           titulo?: string;
           descricao?: string | null;
           valor?: number;
+          valor_pago?: number;
           prazo?: string;
           data_pagamento?: string | null;
           importancia?: ImportanciaConta;
@@ -92,6 +104,18 @@ export interface Database {
           recorrente?: boolean;
           created_at?: string;
         };
+      };
+      pagamentos_conta: {
+        Row: PagamentoContaRow;
+        Insert: {
+          id?: string;
+          conta_id: string;
+          user_id: string;
+          valor: number;
+          pago_em?: string;
+          created_at?: string;
+        };
+        Update: never;
       };
     };
     Views: {
@@ -136,6 +160,9 @@ export type CategoryMonthly = {
 
 export type TransactionWithCategory = Transaction & { category: Category | null };
 
+export type PagamentoConta = PagamentoContaRow;
+
 export type ContaPagar = ContaPagarRow & {
   categoria?: Category | null;
+  pagamentos?: PagamentoConta[];
 };

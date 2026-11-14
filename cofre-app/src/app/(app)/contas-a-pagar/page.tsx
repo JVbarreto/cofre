@@ -1,10 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatBRL } from "@/lib/utils/currency";
-import type { Category, CategoriaRow, ImportanciaConta, FormaPagamentoConta, StatusConta } from "@/types/database";
+import type {
+  Category,
+  CategoriaRow,
+  ImportanciaConta,
+  FormaPagamentoConta,
+  StatusConta,
+  PagamentoConta,
+} from "@/types/database";
 import { mapCategoria } from "@/lib/data/mappers";
+import { registrarPagamento, desfazerPagamento } from "@/lib/actions/contas-pagar";
 import {
   Plus,
   Search,
@@ -21,6 +29,8 @@ import {
   FileText,
   EllipsisVertical,
   X,
+  History,
+  RotateCcw,
 } from "lucide-react";
 
 export type ContaPagarItem = {
@@ -29,6 +39,7 @@ export type ContaPagarItem = {
   titulo: string;
   descricao: string | null;
   valor: number;
+  valor_pago: number;
   prazo: string; // YYYY-MM-DD
   data_pagamento: string | null; // YYYY-MM-DD
   importancia: ImportanciaConta;
@@ -100,6 +111,38 @@ function localTodayIso() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function parseCurrencyInput(raw: string): number {
+  const cleaned = raw.trim().replace(/[^\d.,-]/g, "");
+  if (!cleaned) return NaN;
+  if (cleaned.includes(",")) {
+    return Number(cleaned.replace(/\./g, "").replace(",", "."));
+  }
+  const parts = cleaned.split(".");
+  if (parts.length > 2) {
+    return Number(parts.join(""));
+  }
+  return Number(cleaned);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeConta(c: any): ContaPagarItem {
+  const valor = Number(c.valor ?? 0);
+  const valorPago = Number(c.valor_pago ?? (c.status === "pago" ? valor : 0));
+  return {
+    ...c,
+    valor,
+    valor_pago: valorPago,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizePagamento(p: any): PagamentoConta {
+  return {
+    ...p,
+    valor: Number(p.valor ?? 0),
+  };
+}
+
 const brlCompact = (n: number) =>
   new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -109,6 +152,7 @@ const brlCompact = (n: number) =>
 
 export default function ContasPagarPage() {
   const [contas, setContas] = useState<ContaPagarItem[]>([]);
+  const [pagamentos, setPagamentos] = useState<PagamentoConta[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -116,33 +160,75 @@ export default function ContasPagarPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSqlModal, setShowSqlModal] = useState(false);
 
-  // Filtros
+  // Filtros e expansão de histórico
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [expandedContaId, setExpandedContaId] = useState<string | null>(null);
 
-  // Modal formulário
+  // Modal formulário de criação/edição
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConta, setEditingConta] = useState<ContaPagarItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Modal de pagamento parcial/total
+  const [payingContaId, setPayingContaId] = useState<string | null>(null);
+  const [payValor, setPayValor] = useState("");
+  const [payDate, setPayDate] = useState("");
+  const [payError, setPayError] = useState<string | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [undoingPaymentId, setUndoingPaymentId] = useState<string | null>(null);
+
+  const todayIso = useMemo(() => localTodayIso(), []);
 
   // Form State
   const [formData, setFormData] = useState({
     titulo: "",
     descricao: "",
     valor: "",
-    prazo: new Date().toISOString().split("T")[0],
-    data_pagamento: "",
+    prazo: todayIso,
     importancia: "media" as ImportanciaConta,
-    status: "pendente" as StatusConta,
     categoria_id: "",
     codigo_barras: "",
     forma_pagamento: "boleto" as FormaPagamentoConta,
     recorrente: false,
+    jaPaga: false,
+    jaPagaData: todayIso,
   });
 
-  const todayIso = useMemo(() => localTodayIso(), []);
+  const fetchContasAndPagamentos = useCallback(async (uid: string): Promise<ContaPagarItem[]> => {
+    const supabase = createClient();
+    const [contasRes, pagamentosRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("contas_pagar")
+        .select("*")
+        .eq("user_id", uid)
+        .order("prazo", { ascending: true }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("pagamentos_conta")
+        .select("*")
+        .eq("user_id", uid)
+        .order("pago_em", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (contasRes.error) {
+      throw contasRes.error;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const normalized = ((contasRes.data as any[]) ?? []).map(normalizeConta);
+    setContas(normalized);
+    if (!pagamentosRes.error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setPagamentos(((pagamentosRes.data as any[]) ?? []).map(normalizePagamento));
+    }
+    return normalized;
+  }, []);
 
   // Carregamento inicial
   useEffect(() => {
@@ -171,62 +257,90 @@ export default function ContasPagarPage() {
 
         setCategories((catData ?? []).map(mapCategoria));
 
-        // Tenta carregar do Supabase
-        let { data: contasData, error: contasError } = await (supabase as any)
-          .from("contas_pagar")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("prazo", { ascending: true });
+        // Carrega contas e pagamentos em paralelo
+        const [contasRes, pagamentosRes] = await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("contas_pagar")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("prazo", { ascending: true }),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("pagamentos_conta")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("pago_em", { ascending: false })
+            .order("created_at", { ascending: false }),
+        ]);
 
-        if (contasError) {
+        if (contasRes.error) {
           // Se a tabela ainda não existir no Supabase, usa localStorage de forma transparente
-          console.warn("Supabase contas_pagar não encontrada ou sem permissão. Usando armazenamento local.", contasError);
+          console.warn("Supabase contas_pagar não encontrada ou sem permissão. Usando armazenamento local.", contasRes.error);
           setUsingLocalStorage(true);
           const localData = localStorage.getItem(`${STORAGE_KEY_PREFIX}${user.id}`);
           if (localData) {
             try {
-              setContas(JSON.parse(localData));
+              const parsed = JSON.parse(localData);
+              setContas(Array.isArray(parsed) ? parsed.map(normalizeConta) : []);
             } catch {
               setContas([]);
             }
           }
         } else {
           setUsingLocalStorage(false);
+          const contasData = contasRes.data ?? [];
           // Se o banco na nuvem acabou de ser criado e está vazio, mas o usuário tinha anotações locais, migra automaticamente
           const localData = localStorage.getItem(`${STORAGE_KEY_PREFIX}${user.id}`);
-          if ((!contasData || contasData.length === 0) && localData) {
+          if (contasData.length === 0 && localData) {
             try {
               const parsedLocal: ContaPagarItem[] = JSON.parse(localData);
               if (parsedLocal.length > 0) {
                 for (const item of parsedLocal) {
-                  await (supabase as any).from("contas_pagar").insert({
-                    user_id: user.id,
-                    titulo: item.titulo,
-                    descricao: item.descricao,
-                    valor: item.valor,
-                    prazo: item.prazo,
-                    data_pagamento: item.data_pagamento,
-                    importancia: item.importancia,
-                    status: item.status,
-                    categoria_id: item.categoria_id,
-                    codigo_barras: item.codigo_barras,
-                    forma_pagamento: item.forma_pagamento,
-                    recorrente: item.recorrente,
-                  });
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const { data: inserted, error: insertError } = await (supabase as any)
+                    .from("contas_pagar")
+                    .insert({
+                      user_id: user.id,
+                      titulo: item.titulo,
+                      descricao: item.descricao,
+                      valor: Number(item.valor ?? 0),
+                      prazo: item.prazo,
+                      importancia: item.importancia,
+                      status: "pendente",
+                      categoria_id: item.categoria_id,
+                      codigo_barras: item.codigo_barras,
+                      forma_pagamento: item.forma_pagamento,
+                      recorrente: item.recorrente,
+                    })
+                    .select("id")
+                    .single();
+
+                  if (!insertError && inserted?.id && item.status === "pago" && Number(item.valor) > 0) {
+                    await registrarPagamento(
+                      inserted.id,
+                      Number(item.valor),
+                      item.data_pagamento || todayIso
+                    );
+                  }
                 }
                 localStorage.removeItem(`${STORAGE_KEY_PREFIX}${user.id}`);
-                const { data: refreshed } = await (supabase as any)
-                  .from("contas_pagar")
-                  .select("*")
-                  .eq("user_id", user.id)
-                  .order("prazo", { ascending: true });
-                contasData = refreshed ?? parsedLocal;
+                await fetchContasAndPagamentos(user.id);
+              } else {
+                setContas([]);
+                setPagamentos([]);
               }
             } catch (migErr) {
               console.warn("Erro ao migrar dados locais:", migErr);
             }
+          } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setContas((contasData as any[]).map(normalizeConta));
+            if (!pagamentosRes.error) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              setPagamentos(((pagamentosRes.data as any[]) ?? []).map(normalizePagamento));
+            }
           }
-          setContas((contasData as ContaPagarItem[]) ?? []);
         }
       } catch (err) {
         console.error("Erro geral ao carregar dados:", err);
@@ -236,15 +350,21 @@ export default function ContasPagarPage() {
     }
 
     loadData();
-  }, []);
+  }, [fetchContasAndPagamentos, todayIso]);
+
+  const activePayingConta = useMemo(
+    () => (payingContaId ? contas.find(c => c.id === payingContaId) ?? null : null),
+    [payingContaId, contas]
+  );
 
   // Trava scroll do body e fecha modais com Escape (acessibilidade WAI-ARIA)
   useEffect(() => {
-    if (!isModalOpen && !showSqlModal) return;
+    if (!isModalOpen && !showSqlModal && !payingContaId) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setIsModalOpen(false);
         setShowSqlModal(false);
+        setPayingContaId(null);
       }
     };
     const originalOverflow = document.body.style.overflow;
@@ -254,7 +374,7 @@ export default function ContasPagarPage() {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isModalOpen, showSqlModal]);
+  }, [isModalOpen, showSqlModal, payingContaId]);
 
   // Fecha o menu de ações da linha ao clicar fora dele
   useEffect(() => {
@@ -273,6 +393,16 @@ export default function ContasPagarPage() {
     };
   }, [menuOpenId]);
 
+  // Pagamentos agrupados por conta
+  const pagamentosPorConta = useMemo(() => {
+    const map: Record<string, PagamentoConta[]> = {};
+    for (const p of pagamentos) {
+      if (!map[p.conta_id]) map[p.conta_id] = [];
+      map[p.conta_id].push(p);
+    }
+    return map;
+  }, [pagamentos]);
+
   // Salvar no storage local se necessário
   function persistLocal(items: ContaPagarItem[]) {
     if (userId) {
@@ -286,21 +416,32 @@ export default function ContasPagarPage() {
     setTimeout(() => setFeedbackMessage(null), 4000);
   }
 
+  // Auxiliar para formatação de data sem UTC offset
+  const formatIsoDate = (iso: string | null) => {
+    if (!iso) return "-";
+    const parts = iso.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return iso;
+  };
+
   // Abrir modal de criação
   function handleOpenCreate() {
     setEditingConta(null);
+    setFormError(null);
     setFormData({
       titulo: "",
       descricao: "",
       valor: "",
-      prazo: new Date().toISOString().split("T")[0],
-      data_pagamento: "",
+      prazo: todayIso,
       importancia: "media",
-      status: "pendente",
       categoria_id: "",
       codigo_barras: "",
       forma_pagamento: "boleto",
       recorrente: false,
+      jaPaga: false,
+      jaPagaData: todayIso,
     });
     setIsModalOpen(true);
   }
@@ -308,63 +449,104 @@ export default function ContasPagarPage() {
   // Abrir modal de edição
   function handleOpenEdit(conta: ContaPagarItem) {
     setEditingConta(conta);
+    setFormError(null);
     setFormData({
       titulo: conta.titulo,
       descricao: conta.descricao ?? "",
-      valor: conta.valor.toString(),
+      valor: conta.valor.toFixed(2).replace(".", ","),
       prazo: conta.prazo,
-      data_pagamento: conta.data_pagamento ?? "",
       importancia: conta.importancia,
-      status: conta.status,
       categoria_id: conta.categoria_id ?? "",
       codigo_barras: conta.codigo_barras ?? "",
       forma_pagamento: conta.forma_pagamento ?? "boleto",
       recorrente: conta.recorrente,
+      jaPaga: false,
+      jaPagaData: todayIso,
     });
     setIsModalOpen(true);
   }
 
-  // Alternar status de pago com 1 clique
-  async function handleToggleStatus(conta: ContaPagarItem) {
-    const novoStatus: StatusConta = conta.status === "pago" ? "pendente" : "pago";
-    const novaDataPagamento = novoStatus === "pago" ? (conta.data_pagamento || todayIso) : null;
+  // Abrir modal de pagamento
+  function handleOpenPayModal(conta: ContaPagarItem) {
+    const restante = Math.max(0, Number((conta.valor - conta.valor_pago).toFixed(2)));
+    setPayingContaId(conta.id);
+    setPayValor(restante.toFixed(2).replace(".", ","));
+    setPayDate(todayIso);
+    setPayError(null);
+  }
 
-    const updatedItem: ContaPagarItem = {
-      ...conta,
-      status: novoStatus,
-      data_pagamento: novaDataPagamento,
-    };
+  // Confirmar pagamento via server action (sem atualização otimista de status/valor_pago)
+  async function handleConfirmPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activePayingConta || !userId) return;
 
-    // Atualização otimista
-    const newContas = contas.map(c => (c.id === conta.id ? updatedItem : c));
-    setContas(newContas);
+    setPayError(null);
+    const parsedValor = parseCurrencyInput(payValor);
+    const roundedValor = Math.round(parsedValor * 100) / 100;
 
-    if (usingLocalStorage || !userId) {
-      persistLocal(newContas);
-      showFeedback(novoStatus === "pago" ? "Conta marcada como paga!" : "Conta marcada como pendente.");
+    if (!Number.isFinite(parsedValor) || roundedValor < 0.01) {
+      setPayError("O valor do pagamento deve ser de pelo menos R$ 0,01.");
       return;
     }
 
+    setIsPaying(true);
     try {
-      const supabase = createClient();
-      const { error } = await (supabase as any)
-        .from("contas_pagar")
-        .update({
-          status: novoStatus,
-          data_pagamento: novaDataPagamento,
-        })
-        .eq("id", conta.id)
-        .eq("user_id", userId);
-
-      if (error) {
-        throw error;
+      const res = await registrarPagamento(activePayingConta.id, roundedValor, payDate || todayIso);
+      if (!res.success) {
+        setPayError(res.message || "Não foi possível registrar o pagamento.");
+        return;
       }
-      showFeedback(novoStatus === "pago" ? "Conta marcada como paga!" : "Conta marcada como pendente.");
+
+      await fetchContasAndPagamentos(userId);
+      setPayingContaId(null);
+      showFeedback("Pagamento registrado com sucesso!");
     } catch (err) {
-      console.warn("Erro ao atualizar no Supabase, mantendo localmente:", err);
-      persistLocal(newContas);
-      setUsingLocalStorage(true);
-      showFeedback("Atualizado localmente.", "success");
+      console.error("Erro ao registrar pagamento:", err);
+      setPayError("Erro inesperado ao registrar o pagamento.");
+    } finally {
+      setIsPaying(false);
+    }
+  }
+
+  // Desfazer pagamento via server action com confirmação
+  async function handleUndoPayment(pagamento: PagamentoConta) {
+    if (!userId) return;
+    if (
+      !confirm(
+        `Tem certeza que deseja desfazer o pagamento de ${formatBRL(pagamento.valor)} realizado em ${formatIsoDate(pagamento.pago_em)}?`
+      )
+    ) {
+      return;
+    }
+
+    setUndoingPaymentId(pagamento.id);
+    setPayError(null);
+    try {
+      const res = await desfazerPagamento(pagamento.id);
+      if (!res.success) {
+        const msg = res.message || "Não foi possível desfazer o pagamento.";
+        if (payingContaId) setPayError(msg);
+        showFeedback(msg, "error");
+        return;
+      }
+
+      const refreshed = await fetchContasAndPagamentos(userId);
+
+      // Se o modal de pagamento dessa conta estiver aberto, atualiza o valor padrão para o novo restante
+      if (payingContaId === pagamento.conta_id) {
+        const updatedConta = refreshed.find(c => c.id === pagamento.conta_id);
+        if (updatedConta) {
+          const novoRestante = Math.max(0, Number((updatedConta.valor - updatedConta.valor_pago).toFixed(2)));
+          setPayValor(novoRestante.toFixed(2).replace(".", ","));
+        }
+      }
+
+      showFeedback("Pagamento desfeito com sucesso.");
+    } catch (err) {
+      console.error("Erro ao desfazer pagamento:", err);
+      showFeedback("Erro inesperado ao desfazer o pagamento.", "error");
+    } finally {
+      setUndoingPaymentId(null);
     }
   }
 
@@ -383,134 +565,168 @@ export default function ContasPagarPage() {
 
     try {
       const supabase = createClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from("contas_pagar").delete().eq("id", id).eq("user_id", userId);
       if (error) throw error;
+      await fetchContasAndPagamentos(userId);
       showFeedback("Anotação excluída com sucesso.");
     } catch (err) {
       console.warn("Erro ao deletar no Supabase:", err);
-      persistLocal(newContas);
-      setUsingLocalStorage(true);
+      showFeedback("Não foi possível excluir a conta.", "error");
+      await fetchContasAndPagamentos(userId).catch(() => {});
     }
   }
 
   // Salvar (Criar ou Editar)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError(null);
+
     if (!formData.titulo.trim()) {
-      showFeedback("Informe o título da conta.", "error");
+      setFormError("Informe o título da conta.");
+      return;
+    }
+
+    const parsedValor = parseCurrencyInput(formData.valor);
+    const roundedValor = Math.round(parsedValor * 100) / 100;
+    if (!Number.isFinite(parsedValor) || roundedValor <= 0) {
+      setFormError("Informe um valor válido maior que zero.");
       return;
     }
 
     setIsSubmitting(true);
-    const parsedValor = parseFloat(formData.valor.replace(",", ".")) || 0;
-    const finalDataPagamento = formData.status === "pago" ? (formData.data_pagamento || todayIso) : (formData.data_pagamento || null);
 
-    if (editingConta) {
-      // Edição
-      const updated: ContaPagarItem = {
-        ...editingConta,
-        titulo: formData.titulo.trim(),
-        descricao: formData.descricao.trim() || null,
-        valor: parsedValor,
-        prazo: formData.prazo,
-        data_pagamento: finalDataPagamento,
-        importancia: formData.importancia,
-        status: formData.status,
-        categoria_id: formData.categoria_id || null,
-        codigo_barras: formData.codigo_barras.trim() || null,
-        forma_pagamento: formData.forma_pagamento,
-        recorrente: formData.recorrente,
-      };
-
-      const newContas = contas.map(c => (c.id === editingConta.id ? updated : c));
-      setContas(newContas);
-
-      if (!usingLocalStorage && userId) {
-        try {
+    try {
+      if (editingConta) {
+        if (!usingLocalStorage && userId) {
           const supabase = createClient();
+          // Edição NUNCA envia status, valor_pago nem data_pagamento
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error } = await (supabase as any)
             .from("contas_pagar")
             .update({
-              titulo: updated.titulo,
-              descricao: updated.descricao,
-              valor: updated.valor,
-              prazo: updated.prazo,
-              data_pagamento: updated.data_pagamento,
-              importancia: updated.importancia,
-              status: updated.status,
-              categoria_id: updated.categoria_id,
-              codigo_barras: updated.codigo_barras,
-              forma_pagamento: updated.forma_pagamento,
-              recorrente: updated.recorrente,
+              titulo: formData.titulo.trim(),
+              descricao: formData.descricao.trim() || null,
+              valor: roundedValor,
+              prazo: formData.prazo,
+              importancia: formData.importancia,
+              categoria_id: formData.categoria_id || null,
+              codigo_barras: formData.codigo_barras.trim() || null,
+              forma_pagamento: formData.forma_pagamento,
+              recorrente: formData.recorrente,
             })
             .eq("id", editingConta.id)
             .eq("user_id", userId);
 
-          if (error) throw error;
-        } catch (err) {
-          console.warn("Erro ao salvar no Supabase, salvando local:", err);
+          if (error) {
+            const msg = String(error.message || "");
+            if (msg.includes("contas_pagar_valor_pago_check") || msg.toLowerCase().includes("valor_pago")) {
+              setFormError(
+                `O valor da conta não pode ser menor que o valor já pago (${formatBRL(editingConta.valor_pago)}).`
+              );
+            } else {
+              setFormError(msg || "Não foi possível atualizar a conta.");
+            }
+            return;
+          }
+
+          await fetchContasAndPagamentos(userId);
+          showFeedback("Conta atualizada com sucesso!");
+          setIsModalOpen(false);
+        } else {
+          const updated: ContaPagarItem = {
+            ...editingConta,
+            titulo: formData.titulo.trim(),
+            descricao: formData.descricao.trim() || null,
+            valor: roundedValor,
+            prazo: formData.prazo,
+            importancia: formData.importancia,
+            categoria_id: formData.categoria_id || null,
+            codigo_barras: formData.codigo_barras.trim() || null,
+            forma_pagamento: formData.forma_pagamento,
+            recorrente: formData.recorrente,
+          };
+          const newContas = contas.map(c => (c.id === editingConta.id ? updated : c));
+          setContas(newContas);
           persistLocal(newContas);
-          setUsingLocalStorage(true);
+          showFeedback("Conta atualizada com sucesso!");
+          setIsModalOpen(false);
         }
       } else {
-        persistLocal(newContas);
-      }
-      showFeedback("Conta atualizada com sucesso!");
-    } else {
-      // Criação
-      const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conta-${Date.now()}`;
-      const newItem: ContaPagarItem = {
-        id: newId,
-        user_id: userId ?? "offline",
-        titulo: formData.titulo.trim(),
-        descricao: formData.descricao.trim() || null,
-        valor: parsedValor,
-        prazo: formData.prazo,
-        data_pagamento: finalDataPagamento,
-        importancia: formData.importancia,
-        status: formData.status,
-        categoria_id: formData.categoria_id || null,
-        codigo_barras: formData.codigo_barras.trim() || null,
-        forma_pagamento: formData.forma_pagamento,
-        recorrente: formData.recorrente,
-        created_at: new Date().toISOString(),
-      };
+        // Criação: sempre com status 'pendente'
+        const newId =
+          typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conta-${Date.now()}`;
 
-      const newContas = [newItem, ...contas];
-      setContas(newContas);
-
-      if (!usingLocalStorage && userId) {
-        try {
+        if (!usingLocalStorage && userId) {
           const supabase = createClient();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error } = await (supabase as any).from("contas_pagar").insert({
-            id: newItem.id,
+            id: newId,
             user_id: userId,
-            titulo: newItem.titulo,
-            descricao: newItem.descricao,
-            valor: newItem.valor,
-            prazo: newItem.prazo,
-            data_pagamento: newItem.data_pagamento,
-            importancia: newItem.importancia,
-            status: newItem.status,
-            categoria_id: newItem.categoria_id,
-            codigo_barras: newItem.codigo_barras,
-            forma_pagamento: newItem.forma_pagamento,
-            recorrente: newItem.recorrente,
+            titulo: formData.titulo.trim(),
+            descricao: formData.descricao.trim() || null,
+            valor: roundedValor,
+            prazo: formData.prazo,
+            importancia: formData.importancia,
+            status: "pendente",
+            categoria_id: formData.categoria_id || null,
+            codigo_barras: formData.codigo_barras.trim() || null,
+            forma_pagamento: formData.forma_pagamento,
+            recorrente: formData.recorrente,
           });
-          if (error) throw error;
-        } catch (err) {
-          console.warn("Erro ao inserir no Supabase, salvando local:", err);
-          persistLocal(newContas);
-          setUsingLocalStorage(true);
-        }
-      } else {
-        persistLocal(newContas);
-      }
-      showFeedback("Nova conta registrada com sucesso!");
-    }
 
-    setIsSubmitting(false);
-    setIsModalOpen(false);
+          if (error) {
+            setFormError(error.message || "Não foi possível registrar a nova conta.");
+            return;
+          }
+
+          if (formData.jaPaga) {
+            const payRes = await registrarPagamento(newId, roundedValor, formData.jaPagaData || todayIso);
+            if (!payRes.success) {
+              await fetchContasAndPagamentos(userId);
+              setFormError(
+                `A conta foi criada, mas não foi possível registrar o pagamento: ${payRes.message || "Erro desconhecido."}`
+              );
+              return;
+            }
+          }
+
+          await fetchContasAndPagamentos(userId);
+          showFeedback(
+            formData.jaPaga ? "Conta registrada e marcada como paga!" : "Nova conta registrada com sucesso!"
+          );
+          setIsModalOpen(false);
+        } else {
+          const newItem: ContaPagarItem = {
+            id: newId,
+            user_id: userId ?? "offline",
+            titulo: formData.titulo.trim(),
+            descricao: formData.descricao.trim() || null,
+            valor: roundedValor,
+            valor_pago: formData.jaPaga ? roundedValor : 0,
+            prazo: formData.prazo,
+            data_pagamento: formData.jaPaga ? formData.jaPagaData || todayIso : null,
+            importancia: formData.importancia,
+            status: formData.jaPaga ? "pago" : "pendente",
+            categoria_id: formData.categoria_id || null,
+            codigo_barras: formData.codigo_barras.trim() || null,
+            forma_pagamento: formData.forma_pagamento,
+            recorrente: formData.recorrente,
+            created_at: new Date().toISOString(),
+          };
+          const newContas = [newItem, ...contas];
+          setContas(newContas);
+          persistLocal(newContas);
+          showFeedback("Nova conta registrada com sucesso!");
+          setIsModalOpen(false);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao salvar conta:", err);
+      setFormError("Erro inesperado ao salvar a conta. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   // Copiar código de barras ou PIX
@@ -522,15 +738,16 @@ export default function ContasPagarPage() {
     setTimeout(() => setCopiedId(null), 2500);
   }
 
-  // Registrar lançamento no livro-caixa caso esteja pago
+  // Registrar lançamento manual no livro-caixa apenas quando status === 'pago', usando valor_pago
   async function handleLancarNoCaixa(conta: ContaPagarItem) {
-    if (!userId) return;
+    if (!userId || conta.status !== "pago") return;
     try {
       const supabase = createClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from("transacoes").insert({
         user_id: userId,
         descricao: `[Conta Paga] ${conta.titulo}`,
-        valor: conta.valor,
+        valor: conta.valor_pago,
         tipo: "saida",
         categoria_id: conta.categoria_id || null,
         data: conta.data_pagamento || todayIso,
@@ -553,24 +770,23 @@ export default function ContasPagarPage() {
     let totalPago = 0;
     let totalAtrasado = 0;
     let countAtrasadas = 0;
-    let countPagasMes = 0;
+    let countPagas = 0;
     let countProximos7Dias = 0;
     let totalProximos7Dias = 0;
 
     contas.forEach(c => {
+      totalPago += c.valor_pago;
+
       if (c.status === "pago") {
-        // "Pagas no mês": considera a data de pagamento (ou o prazo, se não informada)
-        if ((c.data_pagamento || c.prazo).slice(0, 7) === todayIso.slice(0, 7)) {
-          totalPago += c.valor;
-          countPagasMes++;
-        }
+        countPagas++;
       } else {
-        totalPendente += c.valor;
+        const restante = Math.max(0, c.valor - c.valor_pago);
+        totalPendente += restante;
         if (c.prazo < todayIso) {
-          totalAtrasado += c.valor;
+          totalAtrasado += restante;
           countAtrasadas++;
         } else if (dayDiff(c.prazo, todayIso) <= 7) {
-          totalProximos7Dias += c.valor;
+          totalProximos7Dias += restante;
           countProximos7Dias++;
         }
       }
@@ -581,7 +797,7 @@ export default function ContasPagarPage() {
       totalPago,
       totalAtrasado,
       countAtrasadas,
-      countPagasMes,
+      countPagas,
       countProximos7Dias,
       totalProximos7Dias,
       countTotal: contas.length,
@@ -599,7 +815,7 @@ export default function ContasPagarPage() {
     return counts;
   }, [contas, todayIso]);
 
-  // Lista filtrada e ordenada: pendentes primeiro (prazo mais próximo no topo), pagas por último
+  // Lista filtrada e ordenada: pendentes/parciais primeiro (prazo mais próximo no topo), pagas por último
   const filteredContas = useMemo(() => {
     return contas
       .filter(item => {
@@ -626,15 +842,6 @@ export default function ContasPagarPage() {
         return aPago ? b.prazo.localeCompare(a.prazo) : a.prazo.localeCompare(b.prazo);
       });
   }, [contas, categories, searchTerm, statusFilter, todayIso]);
-  // Auxiliar para formatação de data sem UTC offset
-  const formatIsoDate = (iso: string | null) => {
-    if (!iso) return "-";
-    const parts = iso.split("-");
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return iso;
-  };
 
   return (
     <div className="page" style={{ position: "relative" }}>
@@ -747,13 +954,13 @@ export default function ContasPagarPage() {
         <section
           className="summary-card"
           style={{ gap: 10, padding: "var(--sp-4)", cursor: "pointer" }}
-          aria-label="Pagas no mês"
+          aria-label="Total pago"
           onClick={() => setStatusFilter(s => (s === "pagas" ? "todas" : "pagas"))}
         >
           <div className="metric-top">
             <span className="metric-label">
-              <span className="only-d">Pagas no Mês</span>
-              <span className="only-m">Pagas</span>
+              <span className="only-d">Total Pago</span>
+              <span className="only-m">Pago</span>
             </span>
             <CircleCheck size={18} color="var(--color-success)" className="only-d" aria-hidden="true" />
           </div>
@@ -763,7 +970,7 @@ export default function ContasPagarPage() {
               <span className="only-m">{brlCompact(metrics.totalPago)}</span>
             </span>
             <span className="count-badge only-d" style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}>
-              {metrics.countPagasMes} {metrics.countPagasMes === 1 ? "conta" : "contas"}
+              {metrics.countPagas} {metrics.countPagas === 1 ? "quitada" : "quitadas"}
             </span>
           </div>
         </section>
@@ -835,16 +1042,25 @@ export default function ContasPagarPage() {
               <div style={{ textAlign: "right" }}>Ações</div>
             </div>
 
-            {filteredContas.map(conta => {
+            {filteredContas.map((conta, idx) => {
               const isPago = conta.status === "pago";
+              const isParcial = conta.status === "parcial";
               const diff = dayDiff(conta.prazo, todayIso);
               const isAtrasada = !isPago && diff < 0;
 
-              const statusInfo = isPago
-                ? { label: "Paga", color: "var(--color-success)", bg: "var(--color-success-bg)" }
+              const statusBadge = isPago
+                ? { label: "Pago", color: "var(--color-success)", bg: "var(--color-success-bg)" }
+                : isParcial
+                  ? { label: "Parcial", color: "var(--color-primary)", bg: "color-mix(in srgb, var(--color-primary) 14%, transparent)" }
+                  : { label: "Pendente", color: "var(--color-warning)", bg: "var(--color-warning-bg)" };
+
+              const iconColor = isPago
+                ? "var(--color-success)"
                 : isAtrasada
-                  ? { label: "Vencida", color: "var(--color-danger)", bg: "var(--color-danger-bg)" }
-                  : { label: "A Vencer", color: "var(--color-warning)", bg: "var(--color-warning-bg)" };
+                  ? "var(--color-danger)"
+                  : isParcial
+                    ? "var(--color-primary)"
+                    : "var(--color-warning)";
 
               let relative = "";
               if (!isPago) {
@@ -860,100 +1076,467 @@ export default function ContasPagarPage() {
               const importanciaInfo = IMPORTANCIA_CONFIG[conta.importancia];
               const showImportancia = !isPago && (conta.importancia === "urgente" || conta.importancia === "alta");
 
+              const contaPagamentos = pagamentosPorConta[conta.id] ?? [];
+              const isExpanded = expandedContaId === conta.id;
+              const pctPago = conta.valor > 0 ? Math.min(100, Math.max(0, (conta.valor_pago / conta.valor) * 100)) : 0;
+              const restante = Math.max(0, conta.valor - conta.valor_pago);
+              const isLastRow = idx === filteredContas.length - 1;
+
               return (
-                <div key={conta.id} className="table-row">
-                  <div className="bill-cell-main">
-                    <span className="bill-icon" aria-hidden="true">
-                      <FileText size={14} color={statusInfo.color} />
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="bill-title" style={{ color: isPago ? "var(--color-text-2)" : undefined }} title={conta.descricao ?? undefined}>
-                        {conta.titulo}
+                <Fragment key={conta.id}>
+                  <div
+                    className="table-row"
+                    style={{
+                      paddingTop: isParcial ? 10 : undefined,
+                      paddingBottom: isParcial ? 10 : undefined,
+                      borderBottom: isExpanded ? "none" : undefined,
+                    }}
+                  >
+                    <div className="bill-cell-main">
+                      <span className="bill-icon" aria-hidden="true">
+                        <FileText size={14} color={iconColor} />
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="bill-title" style={{ color: isPago ? "var(--color-text-2)" : undefined }} title={conta.descricao ?? undefined}>
+                          {conta.titulo}
+                        </div>
+                        <div className="bill-sub">
+                          {categoriaObj?.name ?? formaInfo?.label ?? "Sem categoria"}
+                          {conta.recorrente && " · Recorrente"}
+                          {showImportancia && (
+                            <span style={{ color: importanciaInfo.color, fontWeight: "var(--weight-strong)" }}> · {importanciaInfo.label}</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="bill-sub">
-                        {categoriaObj?.name ?? formaInfo?.label ?? "Sem categoria"}
-                        {conta.recorrente && " · Recorrente"}
-                        {showImportancia && (
-                          <span style={{ color: importanciaInfo.color, fontWeight: "var(--weight-strong)" }}> · {importanciaInfo.label}</span>
-                        )}
-                      </div>
+                    </div>
+
+                    <div style={{ fontSize: "var(--text-xs)", color: isAtrasada ? "var(--color-danger)" : "var(--color-text-2)", whiteSpace: "nowrap" }}>
+                      {formatIsoDate(conta.prazo)}{relative}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                      <span className="count-badge" style={{ background: statusBadge.bg, color: statusBadge.color, display: "inline-block" }}>
+                        {statusBadge.label}
+                      </span>
+                      {isAtrasada && (
+                        <span className="count-badge" style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)", display: "inline-block" }}>
+                          Vencida
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="num" style={{ textAlign: "left" }}>
+                      {isParcial ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                          <span style={{ fontSize: "var(--text-xs)", fontWeight: "var(--weight-strong)", color: "var(--color-text)", whiteSpace: "nowrap" }}>
+                            {formatBRL(conta.valor_pago)} / {formatBRL(conta.valor)}
+                          </span>
+                          <div
+                            className="meter"
+                            role="progressbar"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(pctPago)}
+                            aria-label={`${Math.round(pctPago)}% pago`}
+                            style={{ width: "100%", maxWidth: 150 }}
+                          >
+                            <span style={{ width: `${pctPago}%` }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: "var(--color-text-3)" }}>
+                            Resta {formatBRL(restante)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: isPago ? "var(--color-text-3)" : "var(--color-text)" }}>
+                          {formatBRL(conta.valor)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="bill-actions" data-row-menu>
+                      {isPago ? (
+                        <span
+                          className="btn-paid"
+                          style={{ cursor: "default" }}
+                          aria-label={`${conta.titulo}: paga`}
+                        >
+                          Paga <Check size={12} aria-hidden="true" />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-pay"
+                          onClick={() => handleOpenPayModal(conta)}
+                          aria-label={`Registrar pagamento de ${conta.titulo}`}
+                        >
+                          <Check size={12} aria-hidden="true" /> Pagar
+                        </button>
+                      )}
+
+                      {contaPagamentos.length > 0 && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          onClick={() => setExpandedContaId(isExpanded ? null : conta.id)}
+                          aria-expanded={isExpanded}
+                          aria-label={`Histórico de pagamentos de ${conta.titulo}`}
+                          title="Histórico de pagamentos"
+                          style={{
+                            color: isExpanded ? "var(--color-primary)" : undefined,
+                            background: isExpanded ? "var(--color-surface-2)" : undefined,
+                          }}
+                        >
+                          <History size={15} aria-hidden="true" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => setMenuOpenId(menuOpenId === conta.id ? null : conta.id)}
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpenId === conta.id}
+                        aria-label={`Mais ações para ${conta.titulo}`}
+                      >
+                        <EllipsisVertical size={16} aria-hidden="true" />
+                      </button>
+
+                      {menuOpenId === conta.id && (
+                        <div className="row-menu" role="menu">
+                          <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleOpenEdit(conta); }}>
+                            <Edit3 size={14} aria-hidden="true" /> Editar
+                          </button>
+                          {contaPagamentos.length > 0 && (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setMenuOpenId(null);
+                                setExpandedContaId(isExpanded ? null : conta.id);
+                              }}
+                            >
+                              <History size={14} aria-hidden="true" />
+                              {isExpanded ? "Ocultar pagamentos" : `Pagamentos (${contaPagamentos.length})`}
+                            </button>
+                          )}
+                          {conta.codigo_barras && (
+                            <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleCopy(conta.codigo_barras!, conta.id); }}>
+                              {copiedId === conta.id ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copiedId === conta.id ? "Copiado!" : "Copiar código"}
+                            </button>
+                          )}
+                          {isPago && (
+                            <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleLancarNoCaixa(conta); }}>
+                              <ArrowUpRight size={14} aria-hidden="true" /> Lançar no caixa
+                            </button>
+                          )}
+                          <button type="button" role="menuitem" className="danger" onClick={() => { setMenuOpenId(null); handleDelete(conta.id); }}>
+                            <Trash2 size={14} aria-hidden="true" /> Excluir
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div style={{ fontSize: "var(--text-xs)", color: isAtrasada ? "var(--color-danger)" : "var(--color-text-2)", whiteSpace: "nowrap" }}>
-                    {formatIsoDate(conta.prazo)}{relative}
-                  </div>
-
-                  <div>
-                    <span className="count-badge" style={{ background: statusInfo.bg, color: statusInfo.color, display: "inline-block" }}>
-                      {statusInfo.label}
-                    </span>
-                  </div>
-
-                  <div className="num" style={{ textAlign: "left", fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: isPago ? "var(--color-text-3)" : "var(--color-text)" }}>
-                    {formatBRL(conta.valor)}
-                  </div>
-
-                  <div className="bill-actions" data-row-menu>
-                    {isPago ? (
-                      <button
-                        type="button"
-                        className="btn-paid"
-                        onClick={() => handleToggleStatus(conta)}
-                        title="Marcar como pendente"
-                        aria-label={`${conta.titulo}: paga. Marcar como pendente`}
-                      >
-                        Paga <Check size={12} aria-hidden="true" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn-pay"
-                        onClick={() => handleToggleStatus(conta)}
-                        aria-label={`Marcar ${conta.titulo} como paga`}
-                      >
-                        <Check size={12} aria-hidden="true" /> Pagar
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={() => setMenuOpenId(menuOpenId === conta.id ? null : conta.id)}
-                      aria-haspopup="menu"
-                      aria-expanded={menuOpenId === conta.id}
-                      aria-label={`Mais ações para ${conta.titulo}`}
+                  {/* HISTÓRICO EXPANSÍVEL DE PAGAMENTOS DA CONTA */}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        background: "var(--color-bg)",
+                        padding: "12px 20px",
+                        borderTop: "1px dashed var(--color-border)",
+                        borderBottom: isLastRow ? "none" : "1px solid var(--color-border)",
+                        borderRadius: isLastRow ? "0 0 var(--radius-md) var(--radius-md)" : undefined,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
                     >
-                      <EllipsisVertical size={16} aria-hidden="true" />
-                    </button>
-
-                    {menuOpenId === conta.id && (
-                      <div className="row-menu" role="menu">
-                        <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleOpenEdit(conta); }}>
-                          <Edit3 size={14} aria-hidden="true" /> Editar
-                        </button>
-                        {conta.codigo_barras && (
-                          <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleCopy(conta.codigo_barras!, conta.id); }}>
-                            {copiedId === conta.id ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copiedId === conta.id ? "Copiado!" : "Copiar código"}
-                          </button>
-                        )}
-                        {isPago && (
-                          <button type="button" role="menuitem" onClick={() => { setMenuOpenId(null); handleLancarNoCaixa(conta); }}>
-                            <ArrowUpRight size={14} aria-hidden="true" /> Lançar no caixa
-                          </button>
-                        )}
-                        <button type="button" role="menuitem" className="danger" onClick={() => { setMenuOpenId(null); handleDelete(conta.id); }}>
-                          <Trash2 size={14} aria-hidden="true" /> Excluir
-                        </button>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span className="eyebrow" style={{ fontSize: 11 }}>
+                          Histórico de pagamentos ({contaPagamentos.length})
+                        </span>
+                        <span className="muted num" style={{ fontSize: "var(--text-xs)" }}>
+                          Pago: {formatBRL(conta.valor_pago)} · Restante: {formatBRL(restante)}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </div>
+
+                      {contaPagamentos.length === 0 ? (
+                        <p className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                          Nenhum pagamento registrado para esta conta.
+                        </p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {contaPagamentos.map(pag => (
+                            <div
+                              key={pag.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                padding: "8px 12px",
+                                background: "var(--color-surface)",
+                                border: "1px solid var(--color-border)",
+                                borderRadius: "var(--radius-sm)",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                                <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                                  {formatIsoDate(pag.pago_em)}
+                                </span>
+                                <span className="num" style={{ fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: "var(--color-success)" }}>
+                                  {formatBRL(pag.valor)}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                onClick={() => handleUndoPayment(pag)}
+                                disabled={undoingPaymentId === pag.id}
+                                style={{ height: 30, minHeight: 30, padding: "0 10px", fontSize: "var(--text-xs)", color: "var(--color-danger)" }}
+                              >
+                                <RotateCcw size={12} aria-hidden="true" />
+                                {undoingPaymentId === pag.id ? "Desfazendo..." : "Desfazer"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Fragment>
               );
             })}
           </div>
         )}
       </section>
+
+      {/* MODAL DE REGISTRAR PAGAMENTO */}
+      {activePayingConta && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-pagar-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10, 14, 23, 0.75)",
+            backdropFilter: "blur(4px)",
+            zIndex: 910,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "var(--sp-4)",
+          }}
+          onClick={e => {
+            if (e.target === e.currentTarget && !isPaying) setPayingContaId(null);
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              maxHeight: "min(90vh, 90dvh)",
+              overflowY: "auto",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border-light)",
+              borderRadius: "var(--radius-md)",
+              padding: "var(--sp-6)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--sp-5)",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--sp-3)" }}>
+              <div>
+                <h2 id="modal-pagar-title" className="h2">Registrar Pagamento</h2>
+                <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: 2 }}>
+                  {activePayingConta.titulo}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPayingContaId(null)}
+                disabled={isPaying}
+                className="btn btn-ghost"
+                style={{ minWidth: 44, minHeight: 44, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                title="Fechar janela"
+                aria-label="Fechar janela"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {(() => {
+              const restante = Math.max(0, Number((activePayingConta.valor - activePayingConta.valor_pago).toFixed(2)));
+              const historico = pagamentosPorConta[activePayingConta.id] ?? [];
+
+              return (
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      gap: "var(--sp-2)",
+                      padding: "var(--sp-3)",
+                      background: "var(--color-surface-2)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
+                    }}
+                  >
+                    <div>
+                      <div className="muted" style={{ fontSize: 11 }}>Total</div>
+                      <div className="num" style={{ textAlign: "left", fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)" }}>
+                        {formatBRL(activePayingConta.valor)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="muted" style={{ fontSize: 11 }}>Já pago</div>
+                      <div className="num" style={{ textAlign: "left", fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: "var(--color-success)" }}>
+                        {formatBRL(activePayingConta.valor_pago)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="muted" style={{ fontSize: 11 }}>Restante</div>
+                      <div className="num" style={{ textAlign: "left", fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: "var(--color-warning)" }}>
+                        {formatBRL(restante)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleConfirmPayment} className="form" noValidate>
+                    <div className="field-row">
+                      <div className="field">
+                        <label htmlFor="pay-valor-input" className="label">Valor do Pagamento (R$)*</label>
+                        <input
+                          id="pay-valor-input"
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="0,00"
+                          value={payValor}
+                          onChange={e => {
+                            setPayValor(e.target.value);
+                            if (payError) setPayError(null);
+                          }}
+                          className="input"
+                          autoFocus
+                        />
+                        <span className="hint">
+                          Mínimo R$ 0,01 · Máximo {formatBRL(restante)}
+                        </span>
+                      </div>
+
+                      <div className="field">
+                        <label htmlFor="pay-date-input" className="label">Data do Pagamento*</label>
+                        <input
+                          id="pay-date-input"
+                          type="date"
+                          required
+                          value={payDate}
+                          onChange={e => {
+                            setPayDate(e.target.value);
+                            if (payError) setPayError(null);
+                          }}
+                          className="input"
+                        />
+                      </div>
+                    </div>
+
+                    {payError && (
+                      <div
+                        role="alert"
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--color-danger-bg)",
+                          color: "var(--color-danger)",
+                          border: "1px solid var(--color-danger)",
+                          fontSize: "var(--text-xs)",
+                          fontWeight: "var(--weight-medium)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <AlertTriangle size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+                        <span>{payError}</span>
+                      </div>
+                    )}
+
+                    <div className="form-actions">
+                      <button
+                        type="button"
+                        onClick={() => setPayingContaId(null)}
+                        className="btn btn-ghost"
+                        disabled={isPaying}
+                      >
+                        Cancelar
+                      </button>
+                      <button type="submit" className="btn btn-primary" disabled={isPaying}>
+                        {isPaying ? "Registrando..." : "Confirmar Pagamento"}
+                      </button>
+                    </div>
+                  </form>
+
+                  {historico.length > 0 && (
+                    <div
+                      style={{
+                        borderTop: "1px solid var(--color-border)",
+                        paddingTop: "var(--sp-4)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      <span className="eyebrow" style={{ fontSize: 11 }}>
+                        Pagamentos anteriores ({historico.length})
+                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {historico.map(pag => (
+                          <div
+                            key={pag.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 10,
+                              padding: "8px 10px",
+                              background: "var(--color-surface-2)",
+                              border: "1px solid var(--color-border)",
+                              borderRadius: "var(--radius-sm)",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                                {formatIsoDate(pag.pago_em)}
+                              </span>
+                              <span className="num" style={{ fontSize: "var(--text-sm)", fontWeight: "var(--weight-strong)", color: "var(--color-success)" }}>
+                                {formatBRL(pag.valor)}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => handleUndoPayment(pag)}
+                              disabled={undoingPaymentId === pag.id || isPaying}
+                              style={{ height: 28, minHeight: 28, padding: "0 8px", fontSize: "var(--text-xs)", color: "var(--color-danger)" }}
+                            >
+                              <RotateCcw size={12} aria-hidden="true" />
+                              {undoingPaymentId === pag.id ? "Desfazendo..." : "Desfazer"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
       {isModalOpen && (
@@ -997,7 +1580,7 @@ export default function ContasPagarPage() {
               <div>
                 <h2 id="modal-conta-title" className="h2">{editingConta ? "Editar Anotação de Conta" : "Nova Anotação de Conta a Pagar"}</h2>
                 <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: 2 }}>
-                  Preencha os dados, prazo, data de pagamento e nível de importância.
+                  Preencha os dados, prazo e nível de importância da conta.
                 </p>
               </div>
               <button
@@ -1037,9 +1620,15 @@ export default function ContasPagarPage() {
                     required
                     placeholder="0,00"
                     value={formData.valor}
-                    onChange={e => setFormData(f => ({ ...f, valor: e.target.value }))}
+                    onChange={e => {
+                      setFormData(f => ({ ...f, valor: e.target.value }));
+                      if (formError) setFormError(null);
+                    }}
                     className="input"
                   />
+                  {editingConta && editingConta.valor_pago > 0 && (
+                    <span className="hint">Já pago: {formatBRL(editingConta.valor_pago)}</span>
+                  )}
                 </div>
 
                 <div className="field">
@@ -1059,7 +1648,7 @@ export default function ContasPagarPage() {
                 </div>
               </div>
 
-              {/* Prazo (Vencimento) e Data de Pagamento */}
+              {/* Prazo (Vencimento) e Forma de Pagamento */}
               <div className="field-row">
                 <div className="field">
                   <label className="label">Prazo de Vencimento*</label>
@@ -1074,14 +1663,19 @@ export default function ContasPagarPage() {
                 </div>
 
                 <div className="field">
-                  <label className="label">Data de Pagamento</label>
-                  <input
-                    type="date"
-                    value={formData.data_pagamento}
-                    onChange={e => setFormData(f => ({ ...f, data_pagamento: e.target.value }))}
+                  <label className="label">Forma de Pagamento</label>
+                  <select
+                    value={formData.forma_pagamento}
+                    onChange={e => setFormData(f => ({ ...f, forma_pagamento: e.target.value as FormaPagamentoConta }))}
                     className="input"
-                  />
-                  <span className="hint">Data agendada ou em que foi paga</span>
+                  >
+                    <option value="boleto">📄 Boleto Bancário</option>
+                    <option value="pix">⚡ PIX</option>
+                    <option value="cartao">💳 Cartão de Crédito</option>
+                    <option value="debito_automatico">🔄 Débito Automático</option>
+                    <option value="dinheiro">💵 Dinheiro</option>
+                    <option value="outro">🏷️ Outro</option>
+                  </select>
                 </div>
               </div>
 
@@ -1126,44 +1720,6 @@ export default function ContasPagarPage() {
                 </div>
               </div>
 
-              {/* Forma de Pagamento e Status */}
-              <div className="field-row">
-                <div className="field">
-                  <label className="label">Forma de Pagamento</label>
-                  <select
-                    value={formData.forma_pagamento}
-                    onChange={e => setFormData(f => ({ ...f, forma_pagamento: e.target.value as FormaPagamentoConta }))}
-                    className="input"
-                  >
-                    <option value="boleto">📄 Boleto Bancário</option>
-                    <option value="pix">⚡ PIX</option>
-                    <option value="cartao">💳 Cartão de Crédito</option>
-                    <option value="debito_automatico">🔄 Débito Automático</option>
-                    <option value="dinheiro">💵 Dinheiro</option>
-                    <option value="outro">🏷️ Outro</option>
-                  </select>
-                </div>
-
-                <div className="field">
-                  <label className="label">Status Inicial</label>
-                  <select
-                    value={formData.status}
-                    onChange={e => {
-                      const newStatus = e.target.value as StatusConta;
-                      setFormData(f => ({
-                        ...f,
-                        status: newStatus,
-                        data_pagamento: newStatus === "pago" && !f.data_pagamento ? todayIso : f.data_pagamento,
-                      }));
-                    }}
-                    className="input"
-                  >
-                    <option value="pendente">⏳ Pendente</option>
-                    <option value="pago">✅ Já Pago</option>
-                  </select>
-                </div>
-              </div>
-
               {/* Código de barras / Chave PIX */}
               <div className="field">
                 <label className="label">Código de Barras / Chave PIX Copia e Cola</label>
@@ -1199,6 +1755,54 @@ export default function ContasPagarPage() {
                 />
                 <span style={{ fontSize: "var(--text-sm)" }}>Conta recorrente (repete todos os meses)</span>
               </label>
+
+              {/* Checkbox "Já paga" apenas na criação */}
+              {!editingConta && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={formData.jaPaga}
+                      onChange={e => setFormData(f => ({ ...f, jaPaga: e.target.checked }))}
+                    />
+                    <span style={{ fontSize: "var(--text-sm)" }}>Já paga (registrar pagamento total ao criar)</span>
+                  </label>
+
+                  {formData.jaPaga && (
+                    <div className="field">
+                      <label className="label">Data do Pagamento*</label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.jaPagaData}
+                        onChange={e => setFormData(f => ({ ...f, jaPagaData: e.target.value }))}
+                        className="input"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formError && (
+                <div
+                  role="alert"
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "var(--color-danger-bg)",
+                    color: "var(--color-danger)",
+                    border: "1px solid var(--color-danger)",
+                    fontSize: "var(--text-xs)",
+                    fontWeight: "var(--weight-medium)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <AlertTriangle size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
               {/* Ações do Formulário */}
               <div className="form-actions" style={{ marginTop: "var(--sp-4)" }}>

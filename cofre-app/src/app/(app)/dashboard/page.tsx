@@ -87,15 +87,16 @@ export default async function DashboardPage() {
   };
 
   const sampleContas = [
-    { id: "sample-1", titulo: "Energia Elétrica (CEMIG)", valor: 184.5, prazo: formatOffsetDate(3), importancia: "alta", status: "pendente", forma_pagamento: "boleto" },
-    { id: "sample-2", titulo: "Fatura Cartão de Crédito", valor: 1420.0, prazo: formatOffsetDate(5), importancia: "urgente", status: "pendente", forma_pagamento: "pix" },
-    { id: "sample-3", titulo: "Internet Fibra 500MB", valor: 99.9, prazo: formatOffsetDate(12), importancia: "media", status: "pendente", forma_pagamento: "debito_automatico" },
-    { id: "sample-4", titulo: "Condomínio Residencial", valor: 450.0, prazo: formatOffsetDate(16), importancia: "alta", status: "pendente", forma_pagamento: "boleto" },
+    { id: "sample-1", titulo: "Energia Elétrica (CEMIG)", valor: 184.5, valor_pago: 0, prazo: formatOffsetDate(3), importancia: "alta", status: "pendente", forma_pagamento: "boleto" },
+    { id: "sample-2", titulo: "Fatura Cartão de Crédito", valor: 1420.0, valor_pago: 0, prazo: formatOffsetDate(5), importancia: "urgente", status: "pendente", forma_pagamento: "pix" },
+    { id: "sample-3", titulo: "Internet Fibra 500MB", valor: 99.9, valor_pago: 0, prazo: formatOffsetDate(12), importancia: "media", status: "pendente", forma_pagamento: "debito_automatico" },
+    { id: "sample-4", titulo: "Condomínio Residencial", valor: 450.0, valor_pago: 0, prazo: formatOffsetDate(16), importancia: "alta", status: "pendente", forma_pagamento: "boleto" },
   ];
 
   const displayContas: any[] = hasRealContas ? contasRaw : sampleContas;
-  const pendingContas = displayContas.filter((c: any) => c.status === "pendente");
-  const totalContasPagar = pendingContas.reduce((sum: number, c: any) => sum + Number(c.valor), 0);
+  const pendingContas = displayContas.filter((c: any) => c.status !== "pago");
+  const getRestante = (c: any) => Math.max(0, Number(c.valor ?? 0) - Number(c.valor_pago ?? 0));
+  const totalContasPagar = pendingContas.reduce((sum: number, c: any) => sum + getRestante(c), 0);
   const nextBills = pendingContas.slice(0, 3);
 
   const incomeCount = transactions?.filter(t => t.type === "income").length ?? 0;
@@ -148,13 +149,16 @@ export default async function DashboardPage() {
 
   const renderBill = (b: any) => {
     const due = getDue(b.prazo);
+    const restante = getRestante(b);
     return (
       <Link key={b.id} href="/contas-a-pagar" className="bill-chip">
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
           <span className="bill-name">{b.titulo}</span>
-          <span className="bill-due" style={{ color: due.color }}>{due.label}</span>
+          <span className="bill-due" style={{ color: due.color }}>
+            {due.label}{b.status === "parcial" ? " · Parcial" : ""}
+          </span>
         </div>
-        <span className="num bill-val">{formatBRL(Number(b.valor))}</span>
+        <span className="num bill-val">{formatBRL(restante)}</span>
       </Link>
     );
   };
